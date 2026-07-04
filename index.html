@@ -42,6 +42,22 @@
     #power-fill { height: 100%; width: 0%; border-radius: 999px;
       background: linear-gradient(90deg, #6ee787, #ffd24a, #ff5544); transition: width .02s linear; }
 
+    /* 空中 BONUS 倍率條 */
+    #air-bonus {
+      position: fixed; top: 78px; left: 50%; transform: translateX(-50%);
+      z-index: 5; pointer-events: none; text-align: center; color: #fff;
+      text-shadow: 0 2px 6px rgba(0,0,0,.5);
+    }
+    #air-bonus.hidden { display: none; }
+    #air-bonus .ab-label { font-size: 12px; letter-spacing: 2px; font-weight: 700; opacity: .95; }
+    #air-bonus #ab-mult { color: #ffd24a; font-size: 15px; margin-left: 4px; }
+    #air-bonus .ab-bar { width: 240px; height: 10px; border-radius: 999px; margin: 5px auto 3px;
+      background: rgba(0,0,0,.35); overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+    #air-bonus #ab-fill { height: 100%; width: 0%; border-radius: 999px;
+      background: linear-gradient(90deg, #6ee787, #ffd24a, #ff5544); transition: width .08s linear; }
+    #air-bonus #ab-value { font-size: 24px; font-weight: 800; color: #ffe27a;
+      text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+
     /* 開始 / 結束 覆蓋 */
     #overlay, #msg {
       position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -100,6 +116,12 @@
     <div class="stat"><span class="k">剩餘動物</span><span class="v" id="pigs"></span></div>
   </div>
   <div id="power"><div id="power-fill"></div></div>
+
+  <div id="air-bonus" class="hidden">
+    <div class="ab-label">空中 BONUS<span id="ab-mult">x1</span></div>
+    <div class="ab-bar"><div id="ab-fill"></div></div>
+    <div id="ab-value">+0</div>
+  </div>
 
   <div id="overlay">
     <div class="menu">

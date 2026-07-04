@@ -10,6 +10,7 @@ import { initAudio, sfx, music } from './sfx.js'
 // ============================================================
 
 const START_AMMO = 8
+const WIN_DELAY = 3.0              // 打完最後一隻後延遲跳過關畫面的秒數（讓玩家看清最後得分）
 const CHARGE_TIME = 1.0            // 滿力所需秒數
 const SPEED_MIN = 16, SPEED_MAX = 40
 const EYE = new THREE.Vector3(0, 1.8, 9)   // 玩家眼睛位置（固定）
@@ -403,6 +404,11 @@ function addBody(type, x, z, bottomY) {
   world.addBody(body)
   scene.add(wrap)
   const ent = { body, group: wrap, type, hp: isAnimal(type) ? 100 : (cfg.explosive ? 45 : 1e9) }
+  if (isAnimal(type)) {
+    // 記錄起始位置與飛行最高點，供加分與飛行特效使用
+    ent.startY = cy; ent.maxY = cy; ent.spawnX = x; ent.spawnZ = z; ent.hy = hy
+    ent.launched = false; ent.calmT = 0; ent.msH = 0; ent.msD = 0   // 飛行狀態與里程碑進度
+  }
   const idle = isAnimal(type) ? idleClip(type) : null
   if (idle) {
     ent.mixer = new THREE.AnimationMixer(wrap)
@@ -421,13 +427,116 @@ function addBody(type, x, z, bottomY) {
   return cy + hy
 }
 
+// ============================================================
+//  加分機制 + 飛行特效（飛越高越遠得分越多，過程即時演出）
+// ============================================================
+const SCORE_BASE = 1000, SCORE_PER_HEIGHT = 400, SCORE_PER_DIST = 200
+const bonusFor = (height, dist) =>
+  Math.round((SCORE_BASE + Math.max(0, height) * SCORE_PER_HEIGHT + Math.max(0, dist) * SCORE_PER_DIST) / 50) * 50
+
+// 里程碑門檻（飛行中突破就爆字）
+const MS_HEIGHT = [{ v: 2.0, t: '騰空！' }, { v: 4.0, t: '高飛！' }, { v: 6.5, t: '沖天！' }]
+const MS_DIST = [{ v: 5, t: '飛遠！' }, { v: 9, t: '超遠！' }, { v: 14, t: '爆遠！' }]
+
 function killAnimal(e) {
   if (e.dead) return
   e.dead = true; e.popping = 0
-  game.score += 5000; game.pigs--
+  const height = Math.max(0, (e.maxY || 0) - (e.startY || 0))
+  const dist = Math.hypot(e.body.position.x - (e.spawnX || 0), e.body.position.z - (e.spawnZ || 0))
+  const bonus = bonusFor(height, dist)
+  game.score += bonus; game.pigs--
   sfx.die()
+  removeTag(e); removeTrail(e)   // 收掉跟隨計數器與拖尾
+  // 死亡結算：金色大字定格上飄
+  spawnFloater(e.body.position, (e.hy || 0.8) + 0.4, '+' + bonus,
+    { fill: '#ffd63a', size: 82, life: 1.2, rise: 1.6, grow: 0.6, worldScale: 2.6 })
   refreshHUD()
 }
+
+// ---- 一次性飄升文字（死亡結算、里程碑爆字共用）----
+const floaters = []
+function makeTextTexture(text, { fill = '#ffd63a', stroke = 'rgba(50,25,0,.9)', size = 76, weight = 900 } = {}) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 128
+  const ctx = c.getContext('2d')
+  ctx.font = `${weight} ${size}px "Segoe UI", "Microsoft JhengHei", sans-serif`
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.lineWidth = 12; ctx.lineJoin = 'round'; ctx.strokeStyle = stroke; ctx.strokeText(text, 128, 66)
+  ctx.fillStyle = fill; ctx.fillText(text, 128, 66)
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+function spawnFloater(pos, headY, text, opts = {}) {
+  const w = opts.worldScale || 2.2
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeTextTexture(text, opts), transparent: true, depthTest: false }))
+  sp.position.set(pos.x, pos.y + headY, pos.z)
+  sp.scale.set(w, w / 2, 1); sp.renderOrder = 999
+  scene.add(sp)
+  floaters.push({ sprite: sp, t: 0, w, life: opts.life || 1.0, rise: opts.rise || 1.8, grow: opts.grow ?? 0.6 })
+}
+
+// ---- 即時跟隨計數器（飛行中掛在動物頭上，數字隨高度/距離往上跳）----
+function ensureTag(e) {
+  if (e.tag) return
+  const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 128
+  const tex = new THREE.CanvasTexture(canvas.getContext('2d').canvas); tex.colorSpace = THREE.SRGBColorSpace
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }))
+  sp.scale.set(2.1, 1.05, 1); sp.renderOrder = 1000
+  scene.add(sp)
+  e.tag = { sprite: sp, ctx: canvas.getContext('2d'), tex, bucket: -1 }
+}
+function updateTag(e, amount) {
+  ensureTag(e)
+  const bucket = Math.round(amount / 50)
+  if (bucket !== e.tag.bucket) {            // 只在顯示值跨 50 級距時重繪，不每幀新建紋理
+    e.tag.bucket = bucket
+    const ctx = e.tag.ctx
+    ctx.clearRect(0, 0, 256, 128)
+    ctx.font = '900 70px "Segoe UI", "Microsoft JhengHei", sans-serif'
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.lineWidth = 12; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(50,25,0,.9)'
+    ctx.strokeText('+' + bucket * 50, 128, 66)
+    ctx.fillStyle = '#fff1a0'; ctx.fillText('+' + bucket * 50, 128, 66)
+    e.tag.tex.needsUpdate = true
+  }
+  const p = e.body.position
+  e.tag.sprite.position.set(p.x, p.y + (e.hy || 0.8) + 0.6, p.z)
+}
+function removeTag(e) {
+  if (!e.tag) return
+  scene.remove(e.tag.sprite); e.tag.tex.dispose(); e.tag.sprite.material.dispose()
+  e.tag = null
+}
+
+// ---- 發光拖尾（沿飛行路徑噴發漸消的暖色光點，形成彗星尾）----
+let glowTex = null
+function getGlowTexture() {
+  if (glowTex) return glowTex
+  const s = 64, c = document.createElement('canvas'); c.width = c.height = s
+  const ctx = c.getContext('2d')
+  const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2)
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.4, 'rgba(255,220,140,0.8)'); g.addColorStop(1, 'rgba(255,180,60,0)')
+  ctx.fillStyle = g; ctx.fillRect(0, 0, s, s)
+  glowTex = new THREE.CanvasTexture(c)
+  return glowTex
+}
+const sparks = []
+function emitTrail(e, speed, dt) {
+  e.sparkT = (e.sparkT || 0) + dt
+  if (speed < 5 || e.sparkT < 0.028) return          // 夠快才噴、限制噴發頻率
+  e.sparkT = 0
+  const p = e.body.position
+  const mat = new THREE.SpriteMaterial({ map: getGlowTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
+  mat.color.setHSL(0.09 + Math.random() * 0.03, 1, 0.6)
+  const sp = new THREE.Sprite(mat)
+  sp.position.set(p.x, p.y + (e.hy || 0.5) * 0.4, p.z)
+  const sc = 0.6 + Math.min(1, speed / 16) * 0.9
+  sp.scale.set(sc, sc, 1)
+  scene.add(sp)
+  sparks.push({ sprite: sp, t: 0, life: 0.45, s0: sc })
+}
+function removeTrail(e) { e.sparkT = 0 }   // 光點各自淡出，這裡只重置節流
+
+function endFlightFX(e) { removeTag(e); removeTrail(e); e.launched = false; e.calmT = 0 }
 
 // 爆炸桶
 const flashes = []
@@ -524,6 +633,8 @@ const hud = {
   msg: document.getElementById('msg'), msgTitle: document.getElementById('msg-title'),
   msgText: document.getElementById('msg-text'), stars: document.getElementById('stars'),
   next: document.getElementById('next'),
+  airBonus: document.getElementById('air-bonus'), abValue: document.getElementById('ab-value'),
+  abFill: document.getElementById('ab-fill'), abMult: document.getElementById('ab-mult'),
 }
 function refreshHUD() {
   if (!game) return
@@ -532,11 +643,27 @@ function refreshHUD() {
   hud.pigs.textContent = '🐾 ' + Math.max(0, game.pigs)
   hud.level.textContent = `關卡 ${currentLevel + 1}／${LEVELS.length}`
 }
+// 空中 BONUS 倍率條：有動物在飛就顯示當前最佳表現
+function updateAirBonusHUD(bonus, height) {
+  if (!hud.airBonus) return
+  if (bonus > 0 && game && !game.over) {
+    hud.airBonus.classList.remove('hidden')
+    hud.abValue.textContent = '+' + bonus
+    hud.abFill.style.width = Math.min(100, bonus / 6000 * 100) + '%'
+    hud.abMult.textContent = 'x' + Math.max(1, Math.min(9, 1 + Math.floor(height / 1.5)))
+  } else {
+    hud.airBonus.classList.add('hidden')
+  }
+}
 
 function clearWorld() {
-  for (const e of entities) { world.removeBody(e.body); scene.remove(e.group) }
+  for (const e of entities) { world.removeBody(e.body); scene.remove(e.group); removeTag(e) }
   entities.length = 0; balls.length = 0
   flashes.forEach((f) => scene.remove(f.mesh)); flashes.length = 0
+  floaters.forEach((p) => { scene.remove(p.sprite); p.sprite.material.map.dispose(); p.sprite.material.dispose() })
+  floaters.length = 0
+  sparks.forEach((s) => { scene.remove(s.sprite); s.sprite.material.dispose() }); sparks.length = 0
+  if (hud.airBonus) hud.airBonus.classList.add('hidden')
 }
 
 // 從 base 高度往上疊 n 個某型積木，回傳頂部高度
@@ -659,7 +786,7 @@ function resetGame(idx) {
   currentLevel = Math.max(0, Math.min(LEVELS.length - 1, idx))
   clearWorld()
   const L = LEVELS[currentLevel]
-  game = { score: 0, ammo: L.ammo, ammoStart: L.ammo, pigs: 0, over: false, cooldown: 0, emptyT: 0, startT: 0, armed: false, intro: true, introT: 0 }
+  game = { score: 0, ammo: L.ammo, ammoStart: L.ammo, pigs: 0, over: false, cooldown: 0, emptyT: 0, startT: 0, armed: false, intro: true, introT: 0, winDelay: 0 }
   hud.msg.classList.add('hidden')
   animIdx = currentLevel * 3                    // 每關從不同動物起輪替，增加跨關變化（可重現）
   L.build()
@@ -891,11 +1018,37 @@ function loop() {
   }
 
   // 同步 + 動畫 + 清理
+  let flyBonus = 0, flyHeight = 0   // 本幀空中動物的最佳表現，供 HUD 倍率條
+  const fxActive = game && !game.over && !game.intro && game.armed
   for (let i = entities.length - 1; i >= 0; i--) {
     const e = entities[i]
     e.group.position.copy(e.body.position)
     e.group.quaternion.copy(e.body.quaternion)
     if (e.mixer) e.mixer.update(dt)
+    if (!e.dead && e.maxY !== undefined && e.body.position.y > e.maxY) e.maxY = e.body.position.y  // 追蹤飛行最高點
+    // 飛行特效：被擊飛的動物 → 跟隨計數器 + 拖尾 + 里程碑爆字
+    if (fxActive && isAnimal(e.type) && !e.dead) {
+      const p = e.body.position
+      const speed = Math.hypot(e.body.velocity.x, e.body.velocity.y, e.body.velocity.z)
+      const height = e.maxY - e.startY
+      const dist = Math.hypot(p.x - e.spawnX, p.z - e.spawnZ)
+      if (!e.launched && (speed > 4 || height > 0.6 || dist > 1.0)) e.launched = true
+      if (e.launched) {
+        const bonus = bonusFor(height, dist)
+        updateTag(e, bonus)
+        emitTrail(e, speed, dt)
+        while (e.msH < MS_HEIGHT.length && height >= MS_HEIGHT[e.msH].v) {
+          spawnFloater(p, (e.hy || 0.8) + 1.0, MS_HEIGHT[e.msH].t, { fill: '#9fe6ff', size: 58, life: 0.85, rise: 2.4, grow: 0.9, worldScale: 2.2 }); e.msH++
+        }
+        while (e.msD < MS_DIST.length && dist >= MS_DIST[e.msD].v) {
+          spawnFloater(p, (e.hy || 0.8) + 0.5, MS_DIST[e.msD].t, { fill: '#ffd0f0', size: 58, life: 0.85, rise: 2.4, grow: 0.9, worldScale: 2.2 }); e.msD++
+        }
+        if (bonus > flyBonus) { flyBonus = bonus; flyHeight = height }
+        // 靜止一段時間仍未死亡（安全落回）→ 收掉特效，允許再次擊飛
+        if (speed < 0.6) { e.calmT = (e.calmT || 0) + dt; if (e.calmT > 0.8) endFlightFX(e) }
+        else e.calmT = 0
+      }
+    }
     if (e.type === 'ball') {
       e.born += dt
       if (e.born > 7 || e.body.position.y < -8) { world.removeBody(e.body); scene.remove(e.group); entities.splice(i, 1); const bi = balls.indexOf(e); if (bi >= 0) balls.splice(bi, 1) }
@@ -907,13 +1060,42 @@ function loop() {
       if (k <= 0.001 && !e.removed) { e.removed = true; world.removeBody(e.body); scene.remove(e.group); entities.splice(i, 1) }
     }
   }
-  if (game && !game.over && game.pigs <= 0) win()
+  // 全部消滅後不立刻結算：延遲數秒讓最後一隻的「+分數」特效播完，玩家看清得分
+  if (game && !game.over && !game.intro && game.pigs <= 0) {
+    game.winDelay += dt
+    if (game.winDelay >= WIN_DELAY) win()
+  }
 
   for (let i = flashes.length - 1; i >= 0; i--) {
     const f = flashes[i]; f.t += dt
     f.mesh.scale.setScalar(1 + f.t * 16); f.mesh.material.opacity = Math.max(0, 0.9 - f.t * 2.5)
     if (f.t > 0.4) { scene.remove(f.mesh); flashes.splice(i, 1) }
   }
+
+  // 飄升文字（死亡結算 / 里程碑）：向上飄、放大、淡出
+  for (let i = floaters.length - 1; i >= 0; i--) {
+    const p = floaters[i]; p.t += dt
+    p.sprite.position.y += dt * p.rise
+    const s = 1 + p.t * p.grow
+    p.sprite.scale.set(p.w * s, p.w / 2 * s, 1)
+    p.sprite.material.opacity = Math.max(0, 1 - p.t / p.life)
+    if (p.t > p.life) {
+      scene.remove(p.sprite); p.sprite.material.map.dispose(); p.sprite.material.dispose()
+      floaters.splice(i, 1)
+    }
+  }
+
+  // 拖尾光點：快速縮小、淡出
+  for (let i = sparks.length - 1; i >= 0; i--) {
+    const s = sparks[i]; s.t += dt
+    const k = 1 - s.t / s.life
+    s.sprite.material.opacity = Math.max(0, k)
+    s.sprite.scale.setScalar(s.s0 * (0.4 + 0.6 * k))
+    if (s.t >= s.life) { scene.remove(s.sprite); s.sprite.material.dispose(); sparks.splice(i, 1) }
+  }
+
+  // HUD 空中 BONUS 倍率條
+  updateAirBonusHUD(flyBonus, flyHeight)
 
   renderer.render(scene, camera)
 }
