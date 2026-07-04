@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>第一人稱丟球 — 3D 憤怒鳥</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; background: #6db8e8; }
+    body { font-family: "Segoe UI", "Microsoft JhengHei", system-ui, sans-serif; }
+    #game { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+
+    /* 準星 */
+    #crosshair {
+      position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      width: 22px; height: 22px; pointer-events: none; z-index: 4;
+    }
+    #crosshair::before, #crosshair::after {
+      content: ''; position: absolute; background: rgba(255,255,255,.9);
+      box-shadow: 0 0 2px rgba(0,0,0,.6);
+    }
+    #crosshair::before { left: 50%; top: 0; width: 2px; height: 100%; transform: translateX(-50%); }
+    #crosshair::after { top: 50%; left: 0; height: 2px; width: 100%; transform: translateY(-50%); }
+
+    /* HUD */
+    #hud {
+      position: fixed; top: 0; left: 0; right: 0; padding: 14px 20px;
+      display: flex; align-items: center; gap: 28px; pointer-events: none;
+      color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.4); z-index: 5;
+    }
+    .stat { display: flex; flex-direction: column; gap: 2px; }
+    .stat .k { font-size: 11px; letter-spacing: 1px; opacity: .85; }
+    .stat .v { font-size: 22px; font-weight: 700; line-height: 1; }
+    #ammo, #pigs { font-size: 18px; letter-spacing: 2px; }
+
+    /* 蓄力條 */
+    #power {
+      position: fixed; left: 50%; bottom: 48px; transform: translateX(-50%);
+      width: 220px; height: 12px; border-radius: 999px; z-index: 5;
+      background: rgba(0,0,0,.35); overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.3);
+    }
+    #power-fill { height: 100%; width: 0%; border-radius: 999px;
+      background: linear-gradient(90deg, #6ee787, #ffd24a, #ff5544); transition: width .02s linear; }
+
+    /* 開始 / 結束 覆蓋 */
+    #overlay, #msg {
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 16px; background: rgba(0,0,0,.5); z-index: 10; color: #fff;
+    }
+    #overlay.hidden, #msg.hidden { display: none; }
+    .box { background: #fff; color: #222; border-radius: 18px; padding: 30px 42px; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,.4); max-width: 460px; }
+
+    /* 關卡選擇選單 */
+    .menu { background: #fff; color: #222; border-radius: 20px; padding: 32px 40px; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,.4); max-width: 720px; }
+    .menu h2 { font-size: 26px; margin-bottom: 10px; }
+    .menu .howto { font-size: 13px; color: #666; line-height: 1.7; margin-bottom: 22px; }
+    .menu .tip { font-size: 12px; color: #999; margin-top: 20px; }
+    #level-list { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .level-card { display: flex; flex-direction: column; align-items: center; gap: 6px;
+      width: 130px; padding: 18px 12px; border-radius: 14px; background: #f4f4f8;
+      box-shadow: 0 4px 12px rgba(0,0,0,.08); cursor: pointer; transition: transform .12s, box-shadow .12s; }
+    .level-card:hover:not(.locked) { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,.16); background: #fff; }
+    .level-card.locked { cursor: not-allowed; opacity: .55; }
+    .level-card .lv-num { font-size: 30px; font-weight: 800; color: #e0533b; line-height: 1; }
+    .level-card.locked .lv-num { color: #aaa; }
+    .level-card .lv-name { font-size: 14px; font-weight: 600; color: #444; }
+    .level-card .lv-stars .cs { font-size: 20px; color: #d9d9e0; }
+    .level-card .lv-stars .cs.on { color: #ffc32b; }
+    .box h2 { font-size: 26px; margin-bottom: 10px; }
+    .box p { font-size: 14px; color: #555; line-height: 1.7; margin-bottom: 18px; }
+    button { cursor: pointer; border: none; font: inherit; font-size: 16px; font-weight: 700;
+      color: #fff; background: #e0533b; padding: 12px 30px; border-radius: 999px;
+      box-shadow: 0 6px 16px rgba(224,83,59,.4); }
+    button:hover { background: #c9432d; }
+    button.ghost { background: #e9e9ee; color: #444; box-shadow: none; }
+    button.ghost:hover { background: #dcdce3; }
+    .btnrow { display: flex; gap: 12px; justify-content: center; }
+    /* 星星 */
+    #stars { display: flex; gap: 10px; justify-content: center; margin: 6px 0 14px; }
+    #stars .star {
+      font-size: 46px; line-height: 1; color: #d9d9e0;
+      transform: scale(.4); opacity: .35; transition: transform .35s cubic-bezier(.2,1.6,.4,1), color .2s, opacity .2s;
+    }
+    #stars .star.on { color: #ffc32b; opacity: 1; transform: scale(1); text-shadow: 0 3px 10px rgba(255,195,43,.6); }
+    kbd { background: #eee; border-radius: 5px; padding: 1px 7px; font-family: monospace; color: #333; }
+    #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: #6db8e8; color: #fff; font-size: 16px; z-index: 20; }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="crosshair"></div>
+
+  <div id="hud">
+    <div class="stat"><span class="k">關卡</span><span class="v" id="level"></span></div>
+    <div class="stat"><span class="k">SCORE</span><span class="v" id="score">0</span></div>
+    <div class="stat"><span class="k">彈藥</span><span class="v" id="ammo"></span></div>
+    <div class="stat"><span class="k">剩餘動物</span><span class="v" id="pigs"></span></div>
+  </div>
+  <div id="power"><div id="power-fill"></div></div>
+
+  <div id="overlay">
+    <div class="menu">
+      <h2>🎯 第一人稱丟球 · 3D 憤怒鳥</h2>
+      <p class="howto">
+        <kbd>移動滑鼠</kbd> 瞄準　<kbd>按住左鍵</kbd> 蓄力　<kbd>放開</kbd> 丟球　把動物 🐷🐑🐔🐱🐕 撞下箱子摔到地板就消滅<br>
+        打中爆炸桶 🛢️ 會把周圍的豬震飛落地。遊戲中按 <kbd>Esc</kbd> 可返回本選單。
+      </p>
+      <div id="level-list"></div>
+      <button id="music-toggle" class="ghost" style="margin-top:18px">🔊 音樂：開</button>
+      <p class="tip">選擇關卡開始（會鎖定滑鼠）· 過關後解鎖下一關 · 遊戲中按 <kbd>M</kbd> 開關音樂</p>
+    </div>
+  </div>
+
+  <div id="msg" class="hidden">
+    <div class="box">
+      <h2 id="msg-title"></h2>
+      <div id="stars"></div>
+      <p id="msg-text"></p>
+      <div class="btnrow">
+        <button id="to-menu" class="ghost">選單</button>
+        <button id="retry" class="ghost">重玩本關</button>
+        <button id="next">下一關 ▶</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading">載入素材中…</div>
+
+  <script type="module" src="./fps.js"></script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "name": "angry-pig",
+  "version": "1.0.0",
+  "description": "第一人稱 3D 憤怒豬 — three.js 渲染 + cannon-es 物理的投擲破壞遊戲",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "cannon-es": "^0.20.0",
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}
