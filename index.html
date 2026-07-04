@@ -103,6 +103,47 @@
     kbd { background: #eee; border-radius: 5px; padding: 1px 7px; font-family: monospace; color: #333; }
     #loading { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
       background: #6db8e8; color: #fff; font-size: 16px; z-index: 20; }
+
+    /* 登入頁（輸入名字才能開始） */
+    #landing { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,.5); z-index: 12; }
+    #landing.hidden { display: none; }
+    .landing-card { background: #fff; color: #222; border-radius: 20px; padding: 36px 40px; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,.4); max-width: 420px; width: 90%; }
+    .landing-card h1 { font-size: 30px; margin-bottom: 4px; }
+    .landing-sub { font-size: 13px; color: #666; margin-bottom: 22px; }
+    #name-input { width: 100%; font-size: 18px; font-weight: 700; text-align: center; padding: 12px 14px;
+      border: 2px solid #e6e6ee; border-radius: 12px; outline: none; margin-bottom: 14px; color: #222; }
+    #name-input:focus { border-color: #e0533b; }
+    #start-btn { width: 100%; font-size: 18px; padding: 14px; }
+    #start-btn:disabled { background: #e9a99d; box-shadow: none; cursor: not-allowed; }
+    #name-hint { font-size: 12px; color: #e0533b; font-weight: 700; margin: 8px 0 2px; }
+    .landing-card .tip { font-size: 11px; color: #999; margin-top: 16px; }
+    #lb-btn-landing { margin-top: 12px; }
+
+    /* 排行榜彈窗 */
+    #lb-modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,.55); z-index: 15; }
+    #lb-modal.hidden { display: none; }
+    .lb-card { background: #fff; color: #222; border-radius: 18px; width: 90%; max-width: 440px; max-height: 80vh;
+      display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+    .lb-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px;
+      font-size: 18px; font-weight: 800; border-bottom: 1px solid #eee; }
+    .lb-head button { background: #eee; color: #666; box-shadow: none; padding: 4px 12px; font-size: 16px; }
+    #lb-list { overflow-y: auto; padding: 10px 16px 18px; }
+    .lb-row { display: flex; align-items: center; gap: 10px; padding: 8px 6px; border-bottom: 1px solid #f2f2f5; font-size: 15px; }
+    .lb-rank { width: 26px; text-align: center; font-weight: 800; color: #bbb; }
+    .lb-rank.top { color: #ffc32b; font-size: 18px; }
+    .lb-name { flex: 1; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lb-lv { font-size: 12px; color: #888; }
+    .lb-score { font-weight: 800; color: #e0533b; min-width: 64px; text-align: right; }
+    .lb-empty { text-align: center; color: #999; padding: 24px; font-size: 14px; }
+    .lb-src { text-align: center; font-size: 12px; font-weight: 700; color: #888; padding: 2px 0 10px; }
+
+    /* 選單玩家列 */
+    .menu-actions { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    #who { font-size: 13px; font-weight: 700; color: #555; }
+    #who b { color: #e0533b; }
   </style>
 </head>
 <body>
@@ -131,7 +172,12 @@
         打中爆炸桶 🛢️ 會把周圍的豬震飛落地。遊戲中按 <kbd>Esc</kbd> 可返回本選單。
       </p>
       <div id="level-list"></div>
-      <button id="music-toggle" class="ghost" style="margin-top:18px">🔊 音樂：開</button>
+      <div class="menu-actions">
+        <span id="who"></span>
+        <button id="rename-btn" class="ghost">✏️ 改名</button>
+        <button id="lb-btn-menu" class="ghost">🏆 排行榜</button>
+        <button id="music-toggle" class="ghost">🔊 音樂：開</button>
+      </div>
       <p class="tip">選擇關卡開始（會鎖定滑鼠）· 過關後解鎖下一關 · 遊戲中按 <kbd>M</kbd> 開關音樂</p>
     </div>
   </div>
@@ -146,6 +192,27 @@
         <button id="retry" class="ghost">重玩本關</button>
         <button id="next">下一關 ▶</button>
       </div>
+    </div>
+  </div>
+
+  <!-- 登入頁：輸入名字才能開始 -->
+  <div id="landing" class="hidden">
+    <div class="landing-card">
+      <h1>🐷 Angry Pig</h1>
+      <p class="landing-sub">第一人稱 3D 投擲破壞 · 憤怒鳥風格</p>
+      <input id="name-input" maxlength="12" placeholder="輸入你的名字" autocomplete="off" />
+      <button id="start-btn" disabled>▶ 開始遊戲</button>
+      <p id="name-hint">請先輸入名字才能開始</p>
+      <button id="lb-btn-landing" class="ghost">🏆 排行榜</button>
+      <p class="tip">名字存在這台裝置，並記錄你的最高分</p>
+    </div>
+  </div>
+
+  <!-- 排行榜彈窗 -->
+  <div id="lb-modal" class="hidden">
+    <div class="lb-card">
+      <div class="lb-head"><span>🏆 排行榜（最高分）</span><button id="lb-close">✕</button></div>
+      <div id="lb-list"></div>
     </div>
   </div>
 

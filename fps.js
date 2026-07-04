@@ -681,8 +681,35 @@ function beam(type, x, z, colXs, n) {
   for (const cx of colXs) colTop = Math.max(colTop, column(cx, z, n))
   return addBody(type, x, z, colTop)
 }
+// 交替木箱／紙箱的高柱（外觀更有變化），回傳頂部高度
+function variedColumn(x, z, n, base = 0) {
+  const palette = ['crate', 'cardboard', 'crate']
+  let top = base
+  for (let i = 0; i < n; i++) top = addBody(palette[i % palette.length], x, z, top)
+  return top
+}
+// 高樓：爆裂物當「地基」最底層 → 交替建材高柱 → 屋頂站動物。
+// 打爆地基（或轟掉塔基）→ 爆炸衝擊波掀翻整棟，動物落地即消滅。
+function tower(x, z, floors, foundation = 'gastank') {
+  const base = foundation ? addBody(foundation, x, z, 0) : 0   // 地基弱點
+  const top = variedColumn(x, z, floors, base)
+  addBody(nextAnimal(), x, z, top)                             // 屋頂動物
+  return top
+}
+// 紙箱大樓：反覆「兩根紙箱柱 + 木板橫版」往上疊出多層樓（像蓋房子）；屋頂站動物，回傳頂高
+function plankTower(x, z, floors, legH = 2) {
+  const dx = 1.05          // 兩根紙箱柱並排（紙箱較寬 → 寬底座、疊高也穩）
+  let base = 0
+  for (let f = 0; f < floors; f++) {
+    const lt = stack('cardboard', x - dx, z, legH, base)
+    const rt = stack('cardboard', x + dx, z, legH, base)
+    base = addBody('plank', x, z, Math.max(lt, rt))   // 橫版蓋兩柱之上，成為下一層地板
+  }
+  addBody(nextAnimal(), x, z, base)                   // 屋頂動物
+  return base
+}
 
-// ---- 關卡定義（10 關，難度與建築複雜度遞增）----
+// ---- 關卡定義（難度與建築複雜度遞增；後段為可炸地基連鎖倒塌的高樓）----
 const LEVELS = [
   {
     name: '暖身', ammo: 6, build() {
@@ -780,6 +807,48 @@ const LEVELS = [
       pigColumn(-1, -16, 3); pigColumn(1, -16, 3)
     }
   },
+  {
+    // 危樓：兩側爆裂地基高塔 + 中央橫版堆疊的紙箱大樓
+    name: '危樓', ammo: 10, build() {
+      tower(-4.5, -10, 4, 'gastank')       // 左爆裂地基塔
+      tower(4.5, -10, 4, 'barrel')         // 右爆裂地基塔
+      plankTower(0, -12, 3)                // 中央紙箱大樓（兩柱 + 橫版）
+      for (const x of [-2, 2]) addBody('brick', x, -6.5, 0)   // 前排磚牆掩護
+      pigColumn(0, -7.8, 1)                                    // 前排動物
+    }
+  },
+  {
+    // 摩天樓：中央高樓 + 兩側樓層，地基爆裂物成群，炸基座整片崩塌
+    name: '摩天樓', ammo: 13, build() {
+      tower(0, -13, 6, 'gastank')                 // 中央主樓
+      tower(-3, -11, 4, 'barrel'); tower(3, -11, 4, 'barrel')   // 兩側副樓
+      pigColumn(-5.2, -10, 3); pigColumn(5.2, -10, 3)          // 側翼動物塔
+      addBody('gastank', -1.6, -8, 0); addBody('gastank', 1.6, -8, 0)   // 前線地基弱點
+      for (const x of [-3, 0, 3]) addBody('sack', x, -6.3, 0)  // 前線沙包掩體
+    }
+  },
+  {
+    // 紙箱大樓：兩根紙箱柱 + 木板橫版反覆堆疊成多層高樓；炸前方地基掀翻整棟
+    name: '紙箱大樓', ammo: 11, build() {
+      plankTower(-5, -11, 3)
+      plankTower(5, -11, 3)
+      plankTower(0, -13, 4)                                // 中央更高
+      addBody('gastank', 0, -10, 0)                        // 中央地基弱點
+      addBody('gastank', -5, -8.5, 0); addBody('gastank', 5, -8.5, 0)   // 兩側地基弱點
+      pigColumn(-2, -7.5, 1); pigColumn(2, -7.5, 1)        // 前排動物
+    }
+  },
+  {
+    // 摩天要塞：中央超高紙箱大樓 + 兩側爆裂地基高塔，地基弱點成串可連環崩塌
+    name: '摩天要塞', ammo: 13, build() {
+      plankTower(0, -14, 4)                          // 中央超高紙箱大樓（橫版堆疊）
+      tower(-4.5, -11, 4, 'gastank')                 // 左爆裂地基塔
+      tower(4.5, -11, 4, 'barrel')                   // 右爆裂地基塔
+      addBody('gastank', 0, -11, 0)                  // 中央樓地基弱點（炸它掀翻主樓）
+      for (const x of [-2.5, 2.5]) addBody('sack', x, -6.5, 0)   // 前線沙包掩體
+      pigColumn(-1.5, -8, 1); pigColumn(1.5, -8, 1)  // 前排動物
+    }
+  },
 ]
 
 function resetGame(idx) {
@@ -808,6 +877,7 @@ function win() {
   const stars = calcStars()
   levelStars[currentLevel] = Math.max(levelStars[currentLevel] || 0, stars)
   saveStars()
+  recordScore(game.score, LEVELS[currentLevel].name)   // 過關分數進排行榜
   const last = currentLevel >= LEVELS.length - 1
   hud.msgTitle.textContent = last ? '🏆 全破！' : '🎉 過關！'
   hud.msgText.textContent = `得分 ${game.score}（剩餘彈藥 +${game.ammo * 1000}）`
@@ -834,6 +904,7 @@ function lose() {
   hud.stars.innerHTML = ''
   hud.next.style.display = 'none'
   sfx.lose()
+  recordScore(game.score, LEVELS[currentLevel].name)   // 失敗也記錄本場分數
   hud.msg.classList.remove('hidden'); exitLock()
 }
 
@@ -865,6 +936,8 @@ function showMenu() {
   hud.msg.classList.add('hidden')
   buildLevelSelect()
   updateMusicBtn()
+  const who = document.getElementById('who')
+  if (who) who.innerHTML = playerName ? `玩家：<b>${escapeHtml(playerName)}</b>` : ''
   overlay.classList.remove('hidden')
 }
 
@@ -899,6 +972,86 @@ const overlay = document.getElementById('overlay')
 const SENS = 0.0022
 
 function exitLock() { if (document.pointerLockElement) document.exitPointerLock() }
+
+// ============================================================
+//  玩家名字 + 本地排行榜（參考 fake-whiteout-survival 的登入門檻與排行榜；
+//  本專案為靜態站，無後端，改用 localStorage 儲存，與該專案無後端時的 fallback 相同）
+// ============================================================
+const NAME_KEY = 'angrypig:name', LB_KEY = 'angrypig:scores', DEVICE_KEY = 'angrypig:device'
+let playerName = (localStorage.getItem(NAME_KEY) || '').trim()
+function setPlayerName(n) { playerName = (n || '').trim().slice(0, 12); localStorage.setItem(NAME_KEY, playerName) }
+// 裝置 id（給後端限流/去重用）
+let deviceId = localStorage.getItem(DEVICE_KEY)
+if (!deviceId) { deviceId = 'd' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem(DEVICE_KEY, deviceId) }
+
+function loadLB() { try { const a = JSON.parse(localStorage.getItem(LB_KEY)); return Array.isArray(a) ? a : [] } catch { return [] } }
+// 送出分數：本機先存一份，同時上傳後端（有部署才會成功；開發/離線自動忽略）
+function recordScore(score, levelName) {
+  if (!playerName || !(score > 0)) return
+  const a = loadLB()
+  a.push({ name: playerName, score, level: levelName, at: Date.now() })
+  a.sort((x, y) => y.score - x.score)
+  try { localStorage.setItem(LB_KEY, JSON.stringify(a.slice(0, 50))) } catch {}
+  fetch('/api/score', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name: playerName, score, level: levelName, deviceId }),
+  }).catch(() => {})
+}
+const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+function drawLB(rows, remote) {
+  const list = document.getElementById('lb-list')
+  const src = `<div class="lb-src">${remote ? '🌐 全球排行榜' : '📱 本機紀錄（未連線到伺服器）'}</div>`
+  if (!rows.length) { list.innerHTML = src + '<div class="lb-empty">還沒有紀錄，開始第一場吧！</div>'; return }
+  list.innerHTML = src + rows.map((r, i) =>
+    `<div class="lb-row"><span class="lb-rank${i < 3 ? ' top' : ''}">${i + 1}</span>` +
+    `<span class="lb-name">${escapeHtml(r.name)}</span>` +
+    `<span class="lb-lv">${escapeHtml(r.level || '')}</span>` +
+    `<span class="lb-score">${Number(r.score).toLocaleString()}</span></div>`).join('')
+}
+// 先顯示本機資料，再用後端（若有部署）覆蓋
+async function renderLeaderboard() {
+  drawLB(loadLB().slice(0, 10), false)
+  try {
+    const res = await fetch('/api/leaderboard?limit=10')
+    if (res.ok) { const rows = await res.json(); if (Array.isArray(rows)) drawLB(rows, true) }
+  } catch {}
+}
+
+// ---- 登入頁 / 排行榜彈窗 ----
+const landing = document.getElementById('landing')
+const nameInput = document.getElementById('name-input')
+const startBtn = document.getElementById('start-btn')
+const lbModal = document.getElementById('lb-modal')
+function refreshStartBtn() {
+  const ok = nameInput.value.trim().length > 0
+  startBtn.disabled = !ok
+  document.getElementById('name-hint').style.visibility = ok ? 'hidden' : 'visible'
+}
+function showLanding() {
+  exitLock()
+  hud.msg.classList.add('hidden')
+  overlay.classList.add('hidden')
+  lbModal.classList.add('hidden')
+  nameInput.value = playerName
+  refreshStartBtn()
+  landing.classList.remove('hidden')
+  nameInput.focus()
+}
+function beginFromLanding() {
+  if (nameInput.value.trim().length === 0) return
+  setPlayerName(nameInput.value)
+  landing.classList.add('hidden')
+  showMenu()
+}
+nameInput.addEventListener('input', refreshStartBtn)
+nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') beginFromLanding() })
+startBtn.addEventListener('click', beginFromLanding)
+document.getElementById('rename-btn').addEventListener('click', showLanding)
+function openLB() { renderLeaderboard(); lbModal.classList.remove('hidden') }
+document.getElementById('lb-close').addEventListener('click', () => lbModal.classList.add('hidden'))
+lbModal.addEventListener('click', (e) => { if (e.target === lbModal) lbModal.classList.add('hidden') })
+for (const id of ['lb-btn-landing', 'lb-btn-menu']) document.getElementById(id).addEventListener('click', openLB)
+
 document.getElementById('retry').addEventListener('click', () => startLevel(currentLevel))
 document.getElementById('next').addEventListener('click', () => startLevel(currentLevel + 1))
 for (const id of ['to-menu', 'to-menu2']) {
@@ -1112,7 +1265,7 @@ loadAll().then(() => {
   resize()
   camera.rotation.set(pitch, yaw, 0)
   buildLevelSelect()
-  showMenu()
+  showLanding()      // 先進登入頁，輸入名字才進選單
   loop()
   document.getElementById('loading').remove()
 }).catch((err) => { document.getElementById('loading').textContent = '載入失敗：' + err; console.error(err) })
