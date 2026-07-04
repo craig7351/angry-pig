@@ -1,5 +1,8 @@
-// 用 Web Audio 即時合成音效與背景音樂 —— 不需任何外部音檔，完全自包含
+// 音效與背景音樂：多數為 Web Audio 即時合成；動物死亡另用外部 die.mp3
+import dieUrl from './die.mp3'
 let ctx = null, master = null, noiseBuf = null, musicGain = null
+let dieBuf = null   // 解碼後的死亡音效 AudioBuffer
+let lastDie = 0     // 上次播放死亡音的時間（去疊音）
 
 export function initAudio() {
   if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return }
@@ -12,6 +15,16 @@ export function initAudio() {
   noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate)
   const d = noiseBuf.getChannelData(0)
   for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1
+  loadDie()
+}
+
+// 載入並解碼 die.mp3（只做一次）；失敗時 sfx.die 會退回合成音
+async function loadDie() {
+  if (dieBuf || !ctx) return
+  try {
+    const res = await fetch(dieUrl)
+    dieBuf = await ctx.decodeAudioData(await res.arrayBuffer())
+  } catch (e) { console.warn('die.mp3 載入失敗，改用合成死亡音', e) }
 }
 
 const t0 = () => ctx.currentTime
@@ -51,6 +64,17 @@ export const sfx = {
   pop() {
     blip({ freq: 520, type: 'triangle', dur: 0.12, gain: 0.35, sweep: 950 })
     noise({ dur: 0.08, gain: 0.18, type: 'highpass', freq: 1200 })
+  },
+  // 動物死亡：播放 die.mp3（尚未載入完成則退回合成 pop）
+  die() {
+    if (!ctx) return
+    if (!dieBuf) { this.pop(); return }
+    const now = t0()
+    if (now - lastDie < 0.05) return   // 同一瞬間多隻死亡只播一次，避免疊音爆音
+    lastDie = now
+    const src = ctx.createBufferSource(); src.buffer = dieBuf
+    const g = ctx.createGain(); g.gain.value = 0.9
+    src.connect(g).connect(master); src.start(now)
   },
   explode() {
     noise({ dur: 0.5, gain: 0.5, type: 'lowpass', freq: 1800, sweep: 110 })

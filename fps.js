@@ -25,40 +25,215 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
+// 卡通鮮豔氛圍：ACES 色調映射 + 略微提亮曝光，讓草地天空更有層次
+renderer.toneMapping = THREE.ACESFilmicToneMapping
+renderer.toneMappingExposure = 1.08
 
 const scene = new THREE.Scene()
 {
+  // 鮮豔卡通天空：飽和藍 → 淺藍 → 地平線暖白
   const c = document.createElement('canvas'); c.width = 2; c.height = 256
   const ctx = c.getContext('2d')
   const g = ctx.createLinearGradient(0, 0, 0, 256)
-  g.addColorStop(0, '#6db8e8'); g.addColorStop(0.65, '#bfe3f5'); g.addColorStop(1, '#e8f4d8')
+  g.addColorStop(0, '#3f9fe6'); g.addColorStop(0.55, '#8fd0f2'); g.addColorStop(1, '#e9f6d6')
   ctx.fillStyle = g; ctx.fillRect(0, 0, 2, 256)
-  scene.background = new THREE.CanvasTexture(c)
+  const skyTex = new THREE.CanvasTexture(c)
+  skyTex.colorSpace = THREE.SRGBColorSpace
+  scene.background = skyTex
 }
-scene.fog = new THREE.Fog(0xbfe3f5, 30, 90)
+scene.fog = new THREE.Fog(0xcfeaf5, 45, 150)
 
-const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 300)
+const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 400)
 camera.rotation.order = 'YXZ'
 camera.position.copy(EYE)
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0x5a6b3a, 1.0))
-const sun = new THREE.DirectionalLight(0xfff2d8, 2.2)
-sun.position.set(-10, 20, 6)
+scene.add(new THREE.HemisphereLight(0xbfe4ff, 0x6b7a3a, 0.95))
+const sun = new THREE.DirectionalLight(0xfff0d0, 2.7)
+sun.position.set(-12, 22, 8)
 sun.castShadow = true
 sun.shadow.mapSize.set(2048, 2048)
-Object.assign(sun.shadow.camera, { left: -20, right: 20, top: 20, bottom: -20, near: 1, far: 70 })
+sun.shadow.bias = -0.0004
+Object.assign(sun.shadow.camera, { left: -22, right: 22, top: 22, bottom: -22, near: 1, far: 80 })
 scene.add(sun)
-scene.add(new THREE.AmbientLight(0xffffff, 0.3))
+scene.add(new THREE.AmbientLight(0xffffff, 0.32))
 
-// 草地
-{
+// ============================================================
+//  環境（草地 / 泥土戰場 / 遠山 / 雲 / 樹 / 場地圍欄）
+//  全部一次性加進 scene，clearWorld 不會清掉，跨關保留
+// ============================================================
+const clouds = []   // { mesh, speed }，主迴圈裡緩慢飄移
+
+// 程序草地貼圖：飽和綠 + 割草條紋 + 細噪點（卡通鮮豔）
+function makeGrassTexture() {
+  const s = 256, c = document.createElement('canvas'); c.width = c.height = s
+  const ctx = c.getContext('2d')
+  ctx.fillStyle = '#57b53a'; ctx.fillRect(0, 0, s, s)
+  // 割草條紋（明暗交替的直向色帶）
+  const stripes = 4, sw = s / stripes
+  for (let i = 0; i < stripes; i++) {
+    ctx.fillStyle = i % 2 ? '#63c043' : '#4fa833'
+    ctx.fillRect(i * sw, 0, sw, s)
+  }
+  // 細噪點：亮綠與暗綠小點增加質感
+  for (let i = 0; i < 2600; i++) {
+    const x = Math.random() * s, y = Math.random() * s
+    ctx.fillStyle = Math.random() < 0.5 ? 'rgba(120,200,80,0.35)' : 'rgba(40,110,30,0.30)'
+    ctx.fillRect(x, y, 2, 2)
+  }
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+  tex.repeat.set(48, 48)
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy()
+  return tex
+}
+
+// 程序泥土貼圖：中央實心、邊緣羽化透明，鋪在堡壘下方當戰場
+function makeDirtTexture() {
+  const s = 256, c = document.createElement('canvas'); c.width = c.height = s
+  const ctx = c.getContext('2d')
+  const g = ctx.createRadialGradient(s / 2, s / 2, s * 0.18, s / 2, s / 2, s * 0.5)
+  g.addColorStop(0, 'rgba(150,110,70,1)'); g.addColorStop(0.7, 'rgba(135,98,60,0.95)')
+  g.addColorStop(1, 'rgba(120,90,55,0)')
+  ctx.fillStyle = g; ctx.fillRect(0, 0, s, s)
+  // 碎石與土色斑點
+  for (let i = 0; i < 900; i++) {
+    const a = Math.random() * Math.PI * 2, r = Math.random() * s * 0.46
+    const x = s / 2 + Math.cos(a) * r, y = s / 2 + Math.sin(a) * r
+    ctx.fillStyle = Math.random() < 0.5 ? 'rgba(90,64,40,0.5)' : 'rgba(180,150,110,0.45)'
+    const d = 1 + Math.random() * 2.5; ctx.fillRect(x, y, d, d)
+  }
+  const tex = new THREE.CanvasTexture(c)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
+// 把裝飾模型（fence/barrier/cone）縮到目標高度後複製一份靜態放進場景
+function placeProp(type, x, z, rotY = 0, targetH = 1.6) {
+  const proto = protos[type]; if (!proto) return null
+  const m = measure(proto)
+  const scale = targetH / (m.size.y || 1)
+  const obj = proto.clone(true)
+  obj.scale.setScalar(scale)
+  // 以底部貼地：抵銷原點偏移
+  obj.position.set(x - m.center.x * scale, -(m.center.y - m.size.y / 2) * scale, z - m.center.z * scale)
+  obj.rotation.y = rotY
+  obj.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true } })
+  scene.add(obj)
+  return { size: m.size.clone().multiplyScalar(scale) }
+}
+
+// 沿一條邊（a→b）用 fence 段落鋪滿；自動偵測模型走向並對齊邊方向
+function fenceLine(ax, az, bx, bz) {
+  const proto = protos.fence; if (!proto) return
+  const m = measure(proto); const targetH = 1.7
+  const scale = targetH / (m.size.y || 1)
+  const runIsX = m.size.x >= m.size.z
+  const runLen = (runIsX ? m.size.x : m.size.z) * scale * 0.98
+  const dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz)
+  const ux = dx / len, uz = dz / len
+  const rotY = runIsX ? Math.atan2(-uz, ux) : Math.atan2(ux, uz)
+  const n = Math.max(1, Math.floor(len / runLen))
+  for (let i = 0; i < n; i++) {
+    const t = runLen * (i + 0.5)
+    placeProp('fence', ax + ux * t, az + uz * t, rotY, targetH)
+  }
+}
+
+function buildEnvironment() {
+  // --- 大草地平面 ---
   const grass = new THREE.Mesh(
-    new THREE.BoxGeometry(120, 1, 120),
-    new THREE.MeshStandardMaterial({ color: 0x7cae4a, roughness: 1 })
+    new THREE.PlaneGeometry(320, 320),
+    new THREE.MeshStandardMaterial({ map: makeGrassTexture(), roughness: 1, metalness: 0 })
   )
-  grass.position.y = -0.5
+  grass.rotation.x = -Math.PI / 2
   grass.receiveShadow = true
   scene.add(grass)
+
+  // --- 堡壘下方泥土戰場 ---
+  const dirt = new THREE.Mesh(
+    new THREE.CircleGeometry(9.5, 48),
+    new THREE.MeshStandardMaterial({ map: makeDirtTexture(), roughness: 1, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 })
+  )
+  dirt.rotation.x = -Math.PI / 2
+  dirt.position.set(0, 0.02, -10.5)
+  dirt.receiveShadow = true
+  scene.add(dirt)
+
+  // --- 遠景低多邊形山丘（環繞地平線，融入霧氣）---
+  const hillGeo = new THREE.IcosahedronGeometry(1, 0)
+  const hillGreens = [0x4e9e38, 0x5aac42, 0x459132, 0x66b84c]
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2 + (i % 2) * 0.3
+    const dist = 68 + (i % 4) * 14
+    const r = 16 + (i % 3) * 8
+    const mat = new THREE.MeshStandardMaterial({ color: hillGreens[i % 4], roughness: 1, flatShading: true })
+    const hill = new THREE.Mesh(hillGeo, mat)
+    hill.scale.set(r, r * (0.45 + (i % 3) * 0.12), r)
+    hill.position.set(Math.cos(a) * dist, -r * 0.55, -8 + Math.sin(a) * dist)
+    scene.add(hill)
+  }
+
+  // --- 蓬鬆雲朵（多顆白球群，主迴圈裡飄移）---
+  const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.92, fog: true })
+  const puffGeo = new THREE.SphereGeometry(1, 10, 8)
+  for (let i = 0; i < 8; i++) {
+    const g = new THREE.Group()
+    const puffs = 4 + (i % 3)
+    for (let p = 0; p < puffs; p++) {
+      const s = 2.6 + Math.random() * 3
+      const puff = new THREE.Mesh(puffGeo, cloudMat)
+      puff.scale.set(s, s * 0.7, s)
+      puff.position.set((p - puffs / 2) * 3 + Math.random() * 2, Math.random() * 1.5, Math.random() * 2)
+      g.add(puff)
+    }
+    g.position.set(-120 + Math.random() * 240, 38 + Math.random() * 22, -30 - Math.random() * 90)
+    scene.add(g)
+    clouds.push({ mesh: g, speed: 0.6 + Math.random() * 0.9 })
+  }
+
+  // --- 卡通樹（InstancedMesh，撒在打擊區外圍當背景）---
+  const spots = []
+  for (let i = 0; i < 60 && spots.length < 44; i++) {
+    const a = Math.random() * Math.PI * 2, d = 16 + Math.random() * 34
+    const x = Math.cos(a) * d, z = -6 + Math.sin(a) * d
+    if (x > -13 && x < 13 && z > -21 && z < 9) continue   // 避開打擊區與玩家視線
+    spots.push({ x, z, s: 0.8 + Math.random() * 1.1, rot: Math.random() * Math.PI })
+  }
+  const trunkMesh = new THREE.InstancedMesh(
+    new THREE.CylinderGeometry(0.16, 0.24, 1.4, 6),
+    new THREE.MeshStandardMaterial({ color: 0x6e4a2a, roughness: 1 }), spots.length)
+  const leafMesh = new THREE.InstancedMesh(
+    new THREE.IcosahedronGeometry(1.1, 0),
+    new THREE.MeshStandardMaterial({ color: 0x4fa838, roughness: 1, flatShading: true }), spots.length)
+  trunkMesh.castShadow = leafMesh.castShadow = true
+  const mtx = new THREE.Matrix4(), q = new THREE.Quaternion()
+  spots.forEach((t, i) => {
+    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), t.rot)
+    mtx.compose(new THREE.Vector3(t.x, 0.7 * t.s, t.z), q, new THREE.Vector3(t.s, t.s, t.s))
+    trunkMesh.setMatrixAt(i, mtx)
+    mtx.compose(new THREE.Vector3(t.x, (1.4 + 0.7) * t.s, t.z), q, new THREE.Vector3(t.s * 1.05, t.s * 1.15, t.s * 1.05))
+    leafMesh.setMatrixAt(i, mtx)
+  })
+  trunkMesh.instanceMatrix.needsUpdate = leafMesh.instanceMatrix.needsUpdate = true
+  trunkMesh.frustumCulled = leafMesh.frustumCulled = false
+  scene.add(trunkMesh, leafMesh)
+
+  // --- 場地圍欄（左 / 右 / 後三面，正面留給玩家）+ 交通錐點綴 ---
+  fenceLine(-12, 7, -12, -19)
+  fenceLine(12, 7, 12, -19)
+  fenceLine(-12, -19, 12, -19)
+  placeProp('barrier', -11.5, 6.5, 0, 1.0)
+  placeProp('barrier', 11.5, 6.5, 0, 1.0)
+  for (const [cx, cz] of [[-8, 6.5], [-4, 7.2], [4, 7.2], [8, 6.5]]) placeProp('cone', cx, cz, Math.random() * Math.PI, 0.7)
+}
+
+// 主迴圈呼叫：雲朵緩慢橫向飄移，超出範圍就繞回
+function updateEnv(dt) {
+  for (const c of clouds) {
+    c.mesh.position.x += c.speed * dt
+    if (c.mesh.position.x > 130) c.mesh.position.x = -130
+  }
 }
 
 // ---- cannon 世界 ----
@@ -100,6 +275,10 @@ const ASSETS = {
   container: 'assets/Container_Small.gltf',
   sack: 'assets/SackTrench.gltf',
   gastank: 'assets/GasTank.gltf',
+  // 純裝飾（不參與物理，用來佈置場地邊界與四周）
+  fence: 'assets/MetalFence.gltf',
+  barrier: 'assets/Barrier_Single.gltf',
+  cone: 'assets/TrafficCone.gltf',
 }
 const protos = {}
 const animClips = {}   // 各動物的動畫片段
@@ -146,6 +325,47 @@ const ANIMAL_POOL = ['pig', 'sheep', 'chicken', 'cat', 'dog', 'raccoon', 'wolf',
 let animIdx = 0
 function nextAnimal() { return ANIMAL_POOL[animIdx++ % ANIMAL_POOL.length] }
 
+// 取某動物的待機動畫片段（與 addBody 播放時的選法一致）
+function idleClip(type) {
+  const cs = animClips[type]
+  if (!cs || !cs.length) return null
+  return cs.find((c) => /idle/i.test(c.name)) || cs[0]
+}
+
+// 量測「蒙皮動畫後的真實包圍盒」：Box3.setFromObject 抓不到骨骼變形，
+// 故沿 idle 動畫採樣多個時刻，逐頂點套用骨骼變換取聯集，讓腳貼齊而非浮空。
+function measureAnimatedBounds(holder, clip) {
+  const meshes = []
+  holder.traverse((o) => { if (o.isSkinnedMesh && o.geometry?.attributes?.position) meshes.push(o) })
+  // 沒有蒙皮網格或不支援逐骨變換 → 退回一般量測
+  if (!meshes.length || typeof meshes[0].applyBoneTransform !== 'function') {
+    return new THREE.Box3().setFromObject(holder)
+  }
+  const mixer = new THREE.AnimationMixer(holder)
+  if (clip) mixer.clipAction(clip).play()
+  const box = new THREE.Box3(), v = new THREE.Vector3()
+  const dur = (clip && clip.duration) || 0
+  const N = clip ? 6 : 1
+  let prev = 0
+  for (let s = 0; s < N; s++) {
+    const t = N > 1 ? (s / (N - 1)) * dur : 0
+    mixer.update(t - prev); prev = t
+    holder.updateMatrixWorld(true)
+    for (const m of meshes) {
+      const pos = m.geometry.attributes.position
+      const stride = pos.count > 3000 ? 3 : 1   // 高面數模型抽樣，控制成本
+      for (let i = 0; i < pos.count; i += stride) {
+        v.fromBufferAttribute(pos, i)
+        m.applyBoneTransform(i, v)
+        v.applyMatrix4(m.matrixWorld)
+        box.expandByPoint(v)
+      }
+    }
+  }
+  mixer.stopAllAction()
+  return box
+}
+
 // 正規化模型：套朝向→量測 footprint→置中；回傳 wrap 與半尺寸
 function makeVisual(type) {
   const cfg = TYPE[type]
@@ -156,7 +376,10 @@ function makeVisual(type) {
   const holder = new THREE.Group()
   holder.add(inst); holder.scale.setScalar(scale)
   if (cfg.faceRotateY) holder.rotation.y = cfg.faceRotateY
-  const box = new THREE.Box3().setFromObject(holder)
+  // 動物用「動畫後真實包圍盒」貼齊；其餘用一般包圍盒
+  const box = isAnimal(type)
+    ? measureAnimatedBounds(holder, idleClip(type))
+    : new THREE.Box3().setFromObject(holder)
   const size = new THREE.Vector3(); box.getSize(size)
   const center = new THREE.Vector3(); box.getCenter(center)
   holder.position.sub(center)
@@ -180,10 +403,9 @@ function addBody(type, x, z, bottomY) {
   world.addBody(body)
   scene.add(wrap)
   const ent = { body, group: wrap, type, hp: isAnimal(type) ? 100 : (cfg.explosive ? 45 : 1e9) }
-  if (isAnimal(type) && animClips[type] && animClips[type].length) {
+  const idle = isAnimal(type) ? idleClip(type) : null
+  if (idle) {
     ent.mixer = new THREE.AnimationMixer(wrap)
-    const clips = animClips[type]
-    const idle = clips.find((c) => /idle/i.test(c.name)) || clips[0]
     ent.mixer.clipAction(idle).play()
   }
   body._ent = ent
@@ -203,7 +425,7 @@ function killAnimal(e) {
   if (e.dead) return
   e.dead = true; e.popping = 0
   game.score += 5000; game.pigs--
-  sfx.pop()
+  sfx.die()
   refreshHUD()
 }
 
@@ -630,6 +852,7 @@ const FIXED = 1 / 60
 function loop() {
   requestAnimationFrame(loop)
   const dt = Math.min(clock.getDelta(), 0.05)
+  updateEnv(dt)
 
   if (game && !game.over) {
     // 物理固定步進（開場與遊戲中都跑，讓堆疊自然穩定）
@@ -703,6 +926,7 @@ function resize() {
 window.addEventListener('resize', resize)
 
 loadAll().then(() => {
+  buildEnvironment()
   resize()
   camera.rotation.set(pitch, yaw, 0)
   buildLevelSelect()
