@@ -1,0 +1,16 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  // Cloudflare Pages 設定：靜態站（dist）+ Pages Functions（functions/api/*）
+  // 部署：npm run deploy（或 dashboard 連 Git 自動部署）
+  "name": "angry-pig",
+  "compatibility_date": "2025-06-01",
+  "pages_build_output_dir": "./dist",
+  // 全球排行榜用 D1（functions/api/* 透過 env.DB 存取）
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "angry-pig-db",
+      "database_id": "671a81a4-93e3-4a5d-ab9e-269df21f2244"
+    }
+  ]
+}
