@@ -1,8 +1,8 @@
 import { json, clampInt, sanitizeText, clientIp, rateLimited } from './_lib.js'
 
 // POST /api/score — 送出一場得分 { name, score, level, deviceId }
+//   回傳該關名次 { ok, best, rank, total }（best=此玩家該關最高分）
 export const onRequestPost = async ({ request, env }) => {
-  // 同一 IP 每 3 秒最多一次，擋腳本洗榜
   if (await rateLimited(env, `score:${clientIp(request)}`, 3000)) {
     return json({ ok: false, error: 'too fast' }, 429)
   }
@@ -20,8 +20,17 @@ export const onRequestPost = async ({ request, env }) => {
   try {
     await env.DB.prepare('INSERT INTO scores (device_id,name,level,score,created_at) VALUES (?,?,?,?,?)')
       .bind(device, name, level, score, Date.now()).run()
+    // 該關名次：以「各名字最高分」計算
+    const mine = await env.DB.prepare('SELECT MAX(score) AS s FROM scores WHERE name=? AND level=?')
+      .bind(name, level).first()
+    const best = mine && mine.s != null ? mine.s : score
+    const hi = await env.DB.prepare(
+      'SELECT COUNT(*) AS c FROM (SELECT name, MAX(score) AS ms FROM scores WHERE level=? GROUP BY name) t WHERE t.ms > ?',
+    ).bind(level, best).first()
+    const tot = await env.DB.prepare('SELECT COUNT(DISTINCT name) AS c FROM scores WHERE level=?')
+      .bind(level).first()
+    return json({ ok: true, best, rank: (hi ? hi.c : 0) + 1, total: tot && tot.c ? tot.c : 1 })
   } catch {
     return json({ error: 'db error' }, 500)
   }
-  return json({ ok: true })
 }

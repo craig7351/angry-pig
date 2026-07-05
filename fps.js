@@ -633,6 +633,7 @@ const hud = {
   msg: document.getElementById('msg'), msgTitle: document.getElementById('msg-title'),
   msgText: document.getElementById('msg-text'), stars: document.getElementById('stars'),
   next: document.getElementById('next'),
+  msgRank: document.getElementById('msg-rank'), msgLb: document.getElementById('msg-lb'),
   airBonus: document.getElementById('air-bonus'), abValue: document.getElementById('ab-value'),
   abFill: document.getElementById('ab-fill'), abMult: document.getElementById('ab-mult'),
 }
@@ -877,7 +878,7 @@ function win() {
   const stars = calcStars()
   levelStars[currentLevel] = Math.max(levelStars[currentLevel] || 0, stars)
   saveStars()
-  recordScore(game.score, LEVELS[currentLevel].name)   // 過關分數進排行榜
+  showLevelRank(LEVELS[currentLevel].name, game.score)   // 送分並顯示本關名次
   const last = currentLevel >= LEVELS.length - 1
   hud.msgTitle.textContent = last ? '🏆 全破！' : '🎉 過關！'
   hud.msgText.textContent = `得分 ${game.score}（剩餘彈藥 +${game.ammo * 1000}）`
@@ -904,7 +905,7 @@ function lose() {
   hud.stars.innerHTML = ''
   hud.next.style.display = 'none'
   sfx.lose()
-  recordScore(game.score, LEVELS[currentLevel].name)   // 失敗也記錄本場分數
+  showLevelRank(LEVELS[currentLevel].name, game.score)   // 送分並顯示本關名次
   hud.msg.classList.remove('hidden'); exitLock()
 }
 
@@ -985,36 +986,87 @@ let deviceId = localStorage.getItem(DEVICE_KEY)
 if (!deviceId) { deviceId = 'd' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem(DEVICE_KEY, deviceId) }
 
 function loadLB() { try { const a = JSON.parse(localStorage.getItem(LB_KEY)); return Array.isArray(a) ? a : [] } catch { return [] } }
-// 送出分數：本機先存一份，同時上傳後端（有部署才會成功；開發/離線自動忽略）
-function recordScore(score, levelName) {
-  if (!playerName || !(score > 0)) return
+// 本機分數存一份，並嘗試上傳後端；回傳後端算出的該關名次 { rank, total, best }（離線則 null）
+async function submitScore(score, levelName) {
+  if (!playerName || !(score > 0)) return null
   const a = loadLB()
   a.push({ name: playerName, score, level: levelName, at: Date.now() })
   a.sort((x, y) => y.score - x.score)
-  try { localStorage.setItem(LB_KEY, JSON.stringify(a.slice(0, 50))) } catch {}
-  fetch('/api/score', {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ name: playerName, score, level: levelName, deviceId }),
-  }).catch(() => {})
+  try { localStorage.setItem(LB_KEY, JSON.stringify(a.slice(0, 100))) } catch {}
+  try {
+    const res = await fetch('/api/score', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: playerName, score, level: levelName, deviceId }),
+    })
+    if (res.ok) { const j = await res.json(); if (j && j.ok) return j }
+  } catch {}
+  return null
+}
+// 本機名次（後端離線時用）：以本機各名字該關最高分計算
+function localRank(score, levelName) {
+  const best = {}
+  for (const r of loadLB()) if (r.level === levelName) best[r.name] = Math.max(best[r.name] || 0, r.score)
+  const mine = best[playerName] != null ? best[playerName] : score
+  const vals = Object.values(best)
+  return { rank: 1 + vals.filter((v) => v > mine).length, total: Math.max(1, vals.length), best: mine, local: true }
+}
+// 本機前 N 名：有 level → 該關各名字最高分；無 level → 各名字「每關最高分加總」
+function localTop(levelName, n) {
+  if (levelName) {
+    const best = {}
+    for (const r of loadLB()) {
+      if (r.level !== levelName) continue
+      if (!best[r.name] || r.score > best[r.name].score) best[r.name] = { name: r.name, score: r.score }
+    }
+    return Object.values(best).sort((x, y) => y.score - x.score).slice(0, n)
+  }
+  // 全部關卡：先取每人每關最高分，再加總
+  const byName = {}   // name -> { level -> best }
+  for (const r of loadLB()) {
+    const m = (byName[r.name] = byName[r.name] || {})
+    if (!(r.level in m) || r.score > m[r.level]) m[r.level] = r.score
+  }
+  return Object.entries(byName)
+    .map(([name, levels]) => ({ name, score: Object.values(levels).reduce((a, b) => a + b, 0) }))
+    .sort((x, y) => y.score - x.score).slice(0, n)
 }
 const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
-function drawLB(rows, remote) {
-  const list = document.getElementById('lb-list')
-  const src = `<div class="lb-src">${remote ? '🌐 全球排行榜' : '📱 本機紀錄（未連線到伺服器）'}</div>`
-  if (!rows.length) { list.innerHTML = src + '<div class="lb-empty">還沒有紀錄，開始第一場吧！</div>'; return }
-  list.innerHTML = src + rows.map((r, i) =>
-    `<div class="lb-row"><span class="lb-rank${i < 3 ? ' top' : ''}">${i + 1}</span>` +
+function lbRowsHtml(rows, showLevel) {
+  return rows.map((r, i) =>
+    `<div class="lb-row${r.name === playerName ? ' me' : ''}"><span class="lb-rank${i < 3 ? ' top' : ''}">${i + 1}</span>` +
     `<span class="lb-name">${escapeHtml(r.name)}</span>` +
-    `<span class="lb-lv">${escapeHtml(r.level || '')}</span>` +
+    (showLevel ? `<span class="lb-lv">${escapeHtml(r.level || '')}</span>` : '') +
     `<span class="lb-score">${Number(r.score).toLocaleString()}</span></div>`).join('')
 }
-// 先顯示本機資料，再用後端（若有部署）覆蓋
-async function renderLeaderboard() {
-  drawLB(loadLB().slice(0, 10), false)
+// 主排行榜彈窗：先顯示本機、再用後端覆蓋；level 為空＝全關
+async function renderLeaderboard(levelName) {
+  const list = document.getElementById('lb-list')
+  const label = levelName ? `🌐 ${levelName}` : '🌐 全部關卡總分（各關最高分加總）'
+  const localLabel = levelName ? `📱 ${levelName}（本機）` : '📱 全部關卡總分（本機）'
+  const src = (remote) => `<div class="lb-src">${remote ? label : localLabel}</div>`
+  const empty = levelName ? '這一關還沒有紀錄，搶頭香！' : '還沒有紀錄，開始第一場吧！'
+  const draw = (rows, remote) =>
+    list.innerHTML = rows.length ? src(remote) + lbRowsHtml(rows, false)
+      : src(remote) + `<div class="lb-empty">${empty}</div>`
+  draw(localTop(levelName, 10), false)
   try {
-    const res = await fetch('/api/leaderboard?limit=10')
-    if (res.ok) { const rows = await res.json(); if (Array.isArray(rows)) drawLB(rows, true) }
+    const res = await fetch(`/api/leaderboard?limit=10${levelName ? '&level=' + encodeURIComponent(levelName) : ''}`)
+    if (res.ok) { const rows = await res.json(); if (Array.isArray(rows)) draw(rows, true) }
   } catch {}
+}
+// 結算畫面：送出分數 → 顯示本關名次 + 本關前幾名（highlight 自己）
+async function showLevelRank(levelName, score) {
+  hud.msgRank.textContent = '結算名次中…'; hud.msgLb.innerHTML = ''
+  const info = (await submitScore(score, levelName)) || localRank(score, levelName)
+  hud.msgRank.innerHTML = `本關排名 <b>第 ${info.rank}</b> / ${info.total} 名${info.local ? '　📱本機' : ''}`
+  let rows = localTop(levelName, 5), remote = false
+  try {
+    const res = await fetch(`/api/leaderboard?limit=5&level=${encodeURIComponent(levelName)}`)
+    if (res.ok) { const r = await res.json(); if (Array.isArray(r)) { rows = r; remote = true } }
+  } catch {}
+  hud.msgLb.innerHTML = rows.length
+    ? `<div class="lb-src">${remote ? '🌐 本關前 5 名' : '📱 本關前 5 名（本機）'}</div>` + lbRowsHtml(rows, false)
+    : ''
 }
 
 // ---- 登入頁 / 排行榜彈窗 ----
@@ -1047,10 +1099,19 @@ nameInput.addEventListener('input', refreshStartBtn)
 nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') beginFromLanding() })
 startBtn.addEventListener('click', beginFromLanding)
 document.getElementById('rename-btn').addEventListener('click', showLanding)
-function openLB() { renderLeaderboard(); lbModal.classList.remove('hidden') }
+const lbLevelSel = document.getElementById('lb-level')
+// 關卡下拉：全部 + 各關名稱
+lbLevelSel.innerHTML = '<option value="">全部關卡</option>' +
+  LEVELS.map((L) => `<option value="${escapeHtml(L.name)}">${escapeHtml(L.name)}</option>`).join('')
+lbLevelSel.addEventListener('change', () => renderLeaderboard(lbLevelSel.value))
+function openLB(levelName) {
+  if (levelName != null) lbLevelSel.value = levelName
+  renderLeaderboard(lbLevelSel.value)
+  lbModal.classList.remove('hidden')
+}
 document.getElementById('lb-close').addEventListener('click', () => lbModal.classList.add('hidden'))
 lbModal.addEventListener('click', (e) => { if (e.target === lbModal) lbModal.classList.add('hidden') })
-for (const id of ['lb-btn-landing', 'lb-btn-menu']) document.getElementById(id).addEventListener('click', openLB)
+for (const id of ['lb-btn-landing', 'lb-btn-menu']) document.getElementById(id).addEventListener('click', () => openLB())
 
 document.getElementById('retry').addEventListener('click', () => startLevel(currentLevel))
 document.getElementById('next').addEventListener('click', () => startLevel(currentLevel + 1))

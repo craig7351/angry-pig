@@ -139,6 +139,20 @@
     .lb-score { font-weight: 800; color: #e0533b; min-width: 64px; text-align: right; }
     .lb-empty { text-align: center; color: #999; padding: 24px; font-size: 14px; }
     .lb-src { text-align: center; font-size: 12px; font-weight: 700; color: #888; padding: 2px 0 10px; }
+    .lb-row.me { background: #fff3ec; box-shadow: inset 0 0 0 2px #f0a58e; border-radius: 8px; }
+    .lb-filter { display: flex; align-items: center; gap: 8px; padding: 12px 20px 4px; }
+    .lb-filter label { font-size: 12px; font-weight: 700; color: #666; }
+    #lb-level { flex: 1; font-size: 14px; font-weight: 700; color: #333; padding: 7px 10px;
+      border: 2px solid #e6e6ee; border-radius: 10px; background: #fff; outline: none; cursor: pointer; }
+    #lb-level:focus { border-color: #e0533b; }
+
+    /* 過關畫面：本關名次 + 迷你排行榜 */
+    #msg-rank { font-size: 16px; font-weight: 800; color: #444; margin: 4px 0 10px; }
+    #msg-rank:empty { display: none; }
+    #msg-rank b { color: #e0533b; font-size: 22px; }
+    #msg-lb { text-align: left; margin: 0 auto 16px; max-width: 320px; }
+    #msg-lb:empty { display: none; }
+    #msg-lb .lb-row { font-size: 14px; padding: 5px 6px; }
 
     /* 選單玩家列 */
     .menu-actions { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
@@ -187,6 +201,8 @@
       <h2 id="msg-title"></h2>
       <div id="stars"></div>
       <p id="msg-text"></p>
+      <div id="msg-rank"></div>
+      <div id="msg-lb"></div>
       <div class="btnrow">
         <button id="to-menu" class="ghost">選單</button>
         <button id="retry" class="ghost">重玩本關</button>
@@ -212,6 +228,7 @@
   <div id="lb-modal" class="hidden">
     <div class="lb-card">
       <div class="lb-head"><span>🏆 排行榜（最高分）</span><button id="lb-close">✕</button></div>
+      <div class="lb-filter"><label>關卡</label><select id="lb-level"></select></div>
       <div id="lb-list"></div>
     </div>
   </div>
