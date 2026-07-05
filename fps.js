@@ -14,7 +14,7 @@ const WIN_DELAY = 3.0              // 打完最後一隻後延遲跳過關畫面
 const CHARGE_TIME = 1.0            // 滿力所需秒數
 const SPEED_MIN = 16, SPEED_MAX = 40
 const EYE = new THREE.Vector3(0, 1.8, 9)   // 玩家眼睛位置（固定）
-const PIG_GROUND_Y = 0.9                    // 豬中心低於此高度 → 視為落地死亡
+const GROUND_MARGIN = 0.4                   // 動物中心低於「自身半高 + 此緩衝」→ 視為落地死亡（依每隻大小判定，馬也準）
 // 開場運鏡：高空環繞關卡一圈 → 俯衝進第一人稱視角
 const INTRO_DUR = 8.0
 const ORBIT_CENTER = new THREE.Vector3(0, 3, -9)  // 環繞中心（關卡中央）
@@ -260,6 +260,7 @@ world.addBody(groundBody)
 const loader = new GLTFLoader()
 const ASSETS = {
   crate: 'assets/Crate.gltf',
+  hardbox: 'assets/Crate.gltf',
   cardboard: 'assets/CardboardBoxes_1.gltf',
   barrel: 'assets/ExplodingBarrel.gltf',
   pig: 'assets/Pig.gltf',
@@ -301,6 +302,7 @@ function measure(obj) {
 const TYPE = {
   crate:     { targetH: 1.2, mass: 1.2, mat: matBox },
   cardboard: { targetH: 1.1, mass: 0.4, mat: matBox },
+  hardbox:   { targetH: 1.2, mass: 3.4, mat: matBox, tint: 0x8fa6c4 },  // 硬箱：質量大，被球撞幾乎不動、動物更難被震下
   barrel:    { targetH: 1.4, mass: 1.0, mat: matBox, sphere: true, explosive: 4.0 },
   // 動物目標（皆為骨架 + Idle 動畫，被撞下箱子落地即消滅）
   pig:       { targetH: 1.10, mass: 0.8, mat: matBox, animal: true },
@@ -372,6 +374,8 @@ function makeVisual(type) {
   const cfg = TYPE[type]
   const proto = protos[type]
   const inst = isAnimal(type) ? skeletonClone(proto) : proto.clone(true)
+  // 色調（如硬箱）：複製材質後乘上 tint，讓外觀與一般木箱區別
+  if (cfg.tint) inst.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.color = new THREE.Color(cfg.tint) } })
   const raw = measure(proto)
   const scale = cfg.scale != null ? cfg.scale : cfg.targetH / (raw.size.y || 1)
   const holder = new THREE.Group()
@@ -421,6 +425,14 @@ function addBody(type, x, z, bottomY) {
       if (ent.dead || !game || !game.armed) return   // 開場沉降期間免疫，避免被掉落積木誤引爆
       const v = Math.abs(e.contact.getImpactVelocityAlongNormal())
       if (v > 6) { ent.hp -= v * 6; if (ent.hp <= 0) { ent.dead = true; ent.popping = 0; explode(body.position, cfg.explosive); game.score += 500 } }
+    })
+  } else if (!isAnimal(type)) {
+    // 積木（木箱／紙箱／硬箱／磚／樑…）：掉落與碰撞時的木頭撞擊聲（開場沉降期間靜音、全域節流）
+    const soft = type === 'cardboard' || type === 'sack'
+    body.addEventListener('collide', (e) => {
+      if (!game || !game.armed) return
+      const v = Math.abs(e.contact.getImpactVelocityAlongNormal())
+      if (v > 2.6) playClack(v, soft)
     })
   }
   entities.push(ent)
@@ -564,6 +576,11 @@ function playThud(v) {
   const t = performance.now()
   if (t - lastThud > 55) { lastThud = t; sfx.thud(v) }
 }
+let lastClack = 0
+function playClack(v, soft) {
+  const t = performance.now()
+  if (t - lastClack > 40) { lastClack = t; sfx.wood(v, soft) }   // 全域節流，避免整棟崩塌時爆音
+}
 function throwBall(power) {
   const dir = new THREE.Vector3()
   camera.getWorldDirection(dir)
@@ -640,9 +657,10 @@ const hud = {
 function refreshHUD() {
   if (!game) return
   hud.score.textContent = game.score
-  hud.ammo.textContent = '🔴'.repeat(Math.max(0, game.ammo))
+  const a = Math.max(0, game.ammo)
+  hud.ammo.textContent = a > 8 ? '🔴×' + a : '🔴'.repeat(a)
   hud.pigs.textContent = '🐾 ' + Math.max(0, game.pigs)
-  hud.level.textContent = `關卡 ${currentLevel + 1}／${LEVELS.length}`
+  hud.level.textContent = game.endless ? `☠️ 死鬥 第 ${game.wave} 波` : `關卡 ${currentLevel + 1}／${LEVELS.length}`
 }
 // 空中 BONUS 倍率條：有動物在飛就顯示當前最佳表現
 function updateAirBonusHUD(bonus, height) {
@@ -909,6 +927,117 @@ function lose() {
   hud.msg.classList.remove('hidden'); exitLock()
 }
 
+// ============================================================
+//  死鬥模式（無限波，每波補彈，純遞增，每 5 波 Boss）
+// ============================================================
+const ENDLESS_KEY = '死鬥'   // 排行榜 level 鍵：用純中文，避免 emoji 變體選擇字被伺服器清掉導致查詢不match
+// 依波數程序生成堡壘（全用現有建築 helper，柱距 2.4 保證不重疊）
+function buildWave(n) {
+  const boss = n % 5 === 0
+  const r = Math.random
+  const hi = Math.min(2 + Math.floor(n / 2), boss ? 9 : 6)    // 塔高上限隨波數成長
+  const lo = Math.max(2, hi - 2)
+  const slotsAll = boss ? [-4.8, -2.4, 2.4, 4.8] : [0, -2.4, 2.4, -4.8, 4.8]
+  const count = Math.min(boss ? 4 : 2 + Math.floor(n / 3), slotsAll.length)
+  const fChance = Math.min(0.15 + n * 0.05, 0.7)             // 地基放爆裂物的機率隨波數上升
+  const hardChance = Math.min(0.1 + n * 0.06, 0.8)          // 用硬箱蓋塔的機率隨波數上升（更難震下）
+  const buildStack = (x, z, h, found, hard) => {            // 地基 → 柱 → 屋頂動物
+    const base = found ? addBody(found, x, z, 0) : 0
+    const top = hard ? hardColumn(x, z, h, base) : variedColumn(x, z, h, base)
+    addBody(nextAnimal(), x, z, top)
+  }
+  for (const x of slotsAll.slice(0, count)) {
+    const h = lo + Math.floor(r() * (hi - lo + 1))
+    const z = -9 - Math.floor(r() * 4)
+    const found = (boss || r() < fChance) ? (r() < 0.5 ? 'gastank' : 'barrel') : null
+    buildStack(x, z, h, found, r() < hardChance)
+  }
+  if (n >= 2) { pigColumn(-1.4, -7, 1); pigColumn(1.4, -7, 1) }         // 前排動物
+  if (n >= 3) for (const x of [-3.6, 3.6]) addBody(r() < 0.5 ? 'brick' : 'sack', x, -6.3, 0)  // 前排掩體
+  const backRows = Math.min(Math.floor(n / 4), 3)                       // 縱深後排
+  for (let i = 0; i < backRows; i++) pigColumn((i - (backRows - 1) / 2) * 2.4, -15 - i, 2)
+  if (boss) {                                                          // Boss：中央超高硬箱塔 + 中央前線爆裂桶
+    buildStack(0, -14, Math.min(6 + Math.floor(n / 5), 10), 'gastank', true)
+    addBody('gastank', 0, -8, 0)
+  }
+}
+// 硬箱柱：往上疊 n 個硬箱，回傳頂高
+function hardColumn(x, z, n, base = 0) {
+  let top = base
+  for (let i = 0; i < n; i++) top = addBody('hardbox', x, z, top)
+  return top
+}
+// 每波補彈量：只看波數、與動物數脫鉤（Boss 動物多但補彈不變 → 變難）
+const MAX_HOLD = 10   // 身上彈藥上限
+function waveAmmo(n) {
+  return Math.min(3 + Math.floor(n / 4), 5)   // 每波補 3~5 顆（隨波數 3→5）
+}
+function startEndless() {
+  initAudio()
+  if (musicEnabled) music.start()
+  clearWorld()
+  game = { score: 0, ammo: 0, ammoStart: 0, pigs: 0, over: false, cooldown: 0, emptyT: 0, startT: 0, armed: false, intro: false, introT: 0, winDelay: 0, endless: true, wave: 0, paused: false }
+  bumpPlays()
+  overlay.classList.add('hidden'); hud.msg.classList.add('hidden')
+  document.getElementById('pause').classList.add('hidden')
+  document.getElementById('pause-hint').classList.remove('hidden')   // 顯示 Esc 暫停提示
+  nextWave()
+  canvas.requestPointerLock()
+}
+function nextWave() {
+  clearWorld()
+  game.wave++
+  animIdx = game.wave * 3
+  buildWave(game.wave)
+  const animals = entities.filter((e) => isAnimal(e.type)).length
+  game.pigs = animals
+  const refill = waveAmmo(game.wave)
+  game.ammo = Math.min(game.ammo + refill, MAX_HOLD)   // 補彈，但身上最多 10 顆
+  game.ammoStart = game.ammo
+  game.startT = 0; game.armed = false; game.emptyT = 0; game.winDelay = 0
+  refreshHUD()
+  showWaveBanner(game.wave, refill)
+  if (game.wave === 1) { game.intro = true; game.introT = 0; updateIntroCamera(0) }  // 只有第一波運鏡
+}
+function endEndless() {
+  if (game.over) return
+  game.over = true
+  hud.msgTitle.textContent = '☠️ 死鬥結束'
+  hud.msgText.textContent = `撐到第 ${game.wave} 波・得分 ${game.score}`
+  hud.stars.innerHTML = ''
+  hud.next.style.display = 'none'
+  sfx.lose()
+  showLevelRank(ENDLESS_KEY, game.score)   // 送分到死鬥榜 + 顯示名次
+  document.getElementById('pause-hint').classList.add('hidden')
+  hud.msg.classList.remove('hidden'); exitLock()
+}
+function showWaveBanner(wave, refill) {
+  const boss = wave % 5 === 0
+  const el = document.getElementById('wave-banner')
+  if (!el) return
+  el.innerHTML = `<div class="wb-title">${boss ? '☠️ BOSS 波' : '第 ' + wave + ' 波'}</div><div class="wb-sub">+${refill} 彈藥</div>`
+  el.classList.toggle('boss', boss)
+  el.classList.remove('hidden'); el.classList.remove('show'); void el.offsetWidth; el.classList.add('show')
+}
+// 暫停 / 繼續 / 結束（死鬥模式）
+function pauseGame() {
+  if (!game || game.over || game.paused) return
+  game.paused = true
+  document.getElementById('pause-text').textContent = `第 ${game.wave} 波・目前得分 ${game.score}`
+  document.getElementById('pause').classList.remove('hidden')
+}
+function resumeGame() {
+  if (!game) return
+  game.paused = false
+  document.getElementById('pause').classList.add('hidden')
+  canvas.requestPointerLock()
+}
+function endEndlessFromPause() {
+  game.paused = false
+  document.getElementById('pause').classList.add('hidden')
+  endEndless()
+}
+
 // ---- 關卡選擇畫面 ----
 function levelUnlocked(i) { return i === 0 || (levelStars[i - 1] || 0) >= 1 }
 
@@ -935,6 +1064,9 @@ function buildLevelSelect() {
 function showMenu() {
   exitLock()
   hud.msg.classList.add('hidden')
+  document.getElementById('pause').classList.add('hidden')
+  document.getElementById('pause-hint').classList.add('hidden')
+  if (game) game.paused = false
   buildLevelSelect()
   updateMusicBtn()
   const who = document.getElementById('who')
@@ -1184,7 +1316,8 @@ document.getElementById('rename-btn').addEventListener('click', showLanding)
 const lbLevelSel = document.getElementById('lb-level')
 // 關卡下拉：全部 + 各關名稱
 lbLevelSel.innerHTML = '<option value="">全部關卡</option>' +
-  LEVELS.map((L) => `<option value="${escapeHtml(L.name)}">${escapeHtml(L.name)}</option>`).join('')
+  LEVELS.map((L) => `<option value="${escapeHtml(L.name)}">${escapeHtml(L.name)}</option>`).join('') +
+  '<option value="死鬥">☠️ 死鬥模式</option>'
 lbLevelSel.addEventListener('change', () => renderLeaderboard(lbLevelSel.value))
 function openLB(levelName) {
   if (levelName != null) lbLevelSel.value = levelName
@@ -1211,21 +1344,25 @@ for (const m of [msgModal, onlineModal]) m.addEventListener('click', (e) => { if
 postHeartbeat(); refreshOnline(); refreshTotals()
 setInterval(() => { postHeartbeat(); refreshOnline() }, 60000)
 
-document.getElementById('retry').addEventListener('click', () => startLevel(currentLevel))
+document.getElementById('endless-btn').addEventListener('click', startEndless)
+document.getElementById('retry').addEventListener('click', () => (game && game.endless ? startEndless() : startLevel(currentLevel)))
 document.getElementById('next').addEventListener('click', () => startLevel(currentLevel + 1))
 for (const id of ['to-menu', 'to-menu2']) {
   const el = document.getElementById(id)
   if (el) el.addEventListener('click', showMenu)
 }
 document.getElementById('music-toggle').addEventListener('click', toggleMusic)
+document.getElementById('resume-btn').addEventListener('click', resumeGame)
+document.getElementById('end-btn').addEventListener('click', endEndlessFromPause)
 document.addEventListener('keydown', (e) => { if (e.key === 'm' || e.key === 'M') toggleMusic() })
 
 document.addEventListener('pointerlockchange', () => {
   locked = document.pointerLockElement === canvas
   if (!locked) {
     charging = false; hideTrajectory(); hud.power.style.width = '0%'
-    // 遊戲進行中放開滑鼠（Esc）→ 回到選單；勝負畫面則維持 msg
-    if (!game || !game.over) showMenu()
+    // Esc 放開滑鼠：死鬥模式 → 暫停選單；一般關卡進行中 → 回主選單；勝負畫面維持 msg
+    if (game && game.endless && !game.over) pauseGame()
+    else if (!game || !game.over) showMenu()
   } else {
     overlay.classList.add('hidden')
   }
@@ -1238,7 +1375,10 @@ document.addEventListener('mousemove', (e) => {
   camera.rotation.y = yaw; camera.rotation.x = pitch
 })
 canvas.addEventListener('mousedown', (e) => {
-  if (!locked || game.over || e.button !== 0) return
+  if (e.button !== 0) return
+  // 未鎖定（例如剛從暫停繼續、瀏覽器冷卻擋掉自動鎖定）→ 點畫面重新鎖定
+  if (!locked) { if (game && !game.over && !game.paused) canvas.requestPointerLock(); return }
+  if (game.over || game.paused) return
   if (game.intro) { endIntro(); return }   // 開場運鏡中點一下 → 直接跳過
   if (game.ammo <= 0 || game.cooldown > 0) return
   charging = true; chargeT = 0
@@ -1291,6 +1431,7 @@ const FIXED = 1 / 60
 function loop() {
   requestAnimationFrame(loop)
   const dt = Math.min(clock.getDelta(), 0.05)
+  if (game && game.paused) { renderer.render(scene, camera); return }   // 暫停：凍結物理/計時/特效，只維持畫面
   updateEnv(dt)
 
   if (game && !game.over) {
@@ -1318,13 +1459,13 @@ function loop() {
       // 豬落地判定：中心高度掉到接近地面就算死
       if (game.armed) {
         for (const e of entities) {
-          if (isAnimal(e.type) && !e.dead && e.body.position.y < PIG_GROUND_Y) killAnimal(e)
+          if (isAnimal(e.type) && !e.dead && e.body.position.y < (e.hy || 0.5) + GROUND_MARGIN) killAnimal(e)
         }
       }
-      // 彈藥用盡且場面靜止 → 判負
+      // 彈藥用盡且場面靜止 → 判負（死鬥模式則結算死鬥成績）
       if (game.ammo <= 0 && game.pigs > 0) {
         game.emptyT += dt
-        if (game.emptyT > 4) lose()
+        if (game.emptyT > 4) (game.endless ? endEndless() : lose())
       }
     }
   }
@@ -1372,10 +1513,12 @@ function loop() {
       if (k <= 0.001 && !e.removed) { e.removed = true; world.removeBody(e.body); scene.remove(e.group); entities.splice(i, 1) }
     }
   }
-  // 全部消滅後不立刻結算：延遲數秒讓最後一隻的「+分數」特效播完，玩家看清得分
+  // 全部消滅後不立刻結算：延遲讓最後一隻的「+分數」特效播完
   if (game && !game.over && !game.intro && game.pigs <= 0) {
     game.winDelay += dt
-    if (game.winDelay >= WIN_DELAY) win()
+    if (game.endless) {
+      if (game.winDelay >= 1.6) { game.score += 300 + game.wave * 150; nextWave() }   // 清波 → 下一波
+    } else if (game.winDelay >= WIN_DELAY) win()
   }
 
   for (let i = flashes.length - 1; i >= 0; i--) {

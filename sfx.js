@@ -61,6 +61,17 @@ export const sfx = {
     blip({ freq: 130, type: 'sine', dur: 0.12, gain: g, sweep: 65 })
     noise({ dur: 0.05, gain: g * 0.4, type: 'lowpass', freq: 400 })
   },
+  // 積木碰撞：木箱＝清脆木頭敲擊；soft（紙箱/沙包）＝悶一點的低頻
+  wood(v = 1, soft = false) {
+    const g = Math.min(0.34, 0.06 + v * 0.02)
+    if (soft) {
+      blip({ freq: 150, type: 'sine', dur: 0.09, gain: g * 0.9, sweep: 80 })
+      noise({ dur: 0.07, gain: g * 0.5, type: 'lowpass', freq: 500 })
+    } else {
+      blip({ freq: 240, type: 'square', dur: 0.06, gain: g * 0.5, sweep: 130 })
+      noise({ dur: 0.06, gain: g, type: 'bandpass', freq: 1500, sweep: 700 })
+    }
+  },
   pop() {
     blip({ freq: 520, type: 'triangle', dur: 0.12, gain: 0.35, sweep: 950 })
     noise({ dur: 0.08, gain: 0.18, type: 'highpass', freq: 1200 })

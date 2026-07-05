@@ -42,6 +42,21 @@
     #power-fill { height: 100%; width: 0%; border-radius: 999px;
       background: linear-gradient(90deg, #6ee787, #ffd24a, #ff5544); transition: width .02s linear; }
 
+    /* 死鬥模式波數橫幅 */
+    #wave-banner { position: fixed; top: 32%; left: 50%; transform: translate(-50%, -50%);
+      z-index: 6; pointer-events: none; text-align: center; color: #fff; }
+    #wave-banner.hidden { display: none; }
+    #wave-banner .wb-title { font-size: 46px; font-weight: 900; letter-spacing: 2px; text-shadow: 0 3px 14px rgba(0,0,0,.6); }
+    #wave-banner.boss .wb-title { color: #ff5544; }
+    #wave-banner .wb-sub { font-size: 20px; font-weight: 800; color: #ffe27a; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+    #wave-banner.show { animation: waveBanner 1.6s ease-out forwards; }
+    @keyframes waveBanner {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(.6); }
+      15% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      70% { opacity: 1; }
+      100% { opacity: 0; transform: translate(-50%, -62%) scale(1); }
+    }
+
     /* 空中 BONUS 倍率條 */
     #air-bonus {
       position: fixed; top: 78px; left: 50%; transform: translateX(-50%);
@@ -59,11 +74,16 @@
       text-shadow: 0 2px 8px rgba(0,0,0,.6); }
 
     /* 開始 / 結束 覆蓋 */
-    #overlay, #msg {
+    #overlay, #msg, #pause {
       position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
       flex-direction: column; gap: 16px; background: rgba(0,0,0,.5); z-index: 10; color: #fff;
     }
-    #overlay.hidden, #msg.hidden { display: none; }
+    #overlay.hidden, #msg.hidden, #pause.hidden { display: none; }
+    /* 死鬥暫停提示（右下角） */
+    #pause-hint { position: fixed; right: 14px; bottom: 14px; z-index: 6; pointer-events: none;
+      font-size: 12px; font-weight: 700; color: #fff; background: rgba(0,0,0,.35);
+      padding: 6px 12px; border-radius: 999px; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+    #pause-hint.hidden { display: none; }
     .box { background: #fff; color: #222; border-radius: 18px; padding: 30px 42px; text-align: center;
       box-shadow: 0 20px 60px rgba(0,0,0,.4); max-width: 460px; }
 
@@ -205,6 +225,21 @@
   </div>
   <div id="power"><div id="power-fill"></div></div>
 
+  <div id="wave-banner" class="hidden"></div>
+  <div id="pause-hint" class="hidden"><kbd>Esc</kbd> 暫停 / 結束</div>
+
+  <!-- 死鬥暫停選單 -->
+  <div id="pause" class="hidden">
+    <div class="box">
+      <h2>⏸ 暫停</h2>
+      <p id="pause-text"></p>
+      <div class="btnrow">
+        <button id="resume-btn">▶ 繼續</button>
+        <button id="end-btn" class="ghost">☠️ 結束死鬥</button>
+      </div>
+    </div>
+  </div>
+
   <div id="air-bonus" class="hidden">
     <div class="ab-label">空中 BONUS<span id="ab-mult">x1</span></div>
     <div class="ab-bar"><div id="ab-fill"></div></div>
@@ -219,6 +254,7 @@
         打中爆炸桶 🛢️ 會把周圍的豬震飛落地。遊戲中按 <kbd>Esc</kbd> 可返回本選單。
       </p>
       <div id="level-list"></div>
+      <button id="endless-btn" style="margin-top:16px">☠️ 死鬥模式（無限波）</button>
       <div class="menu-actions">
         <span id="who"></span>
         <button id="rename-btn" class="ghost">✏️ 改名</button>
