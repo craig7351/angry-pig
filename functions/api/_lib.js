@@ -42,3 +42,14 @@ export function sanitizeText(v, maxLen) {
   if (typeof v !== 'string') return ''
   return v.replace(/[<>]/g, '').replace(/\p{C}/gu, '').trim().slice(0, maxLen)
 }
+
+/** 基本髒話 / 廣告字詞過濾（命中即拒收留言） */
+const BAD_WORDS = [
+  '幹你', '幹妳', '操你', '操妳', '靠北', '靠腰', '婊', '賤貨', '王八', '雜種',
+  'fuck', 'shit', 'bitch', 'asshole', 'cunt', 'dick', 'porn', 'sex',
+  '威而鋼', '博弈', '娛樂城', '加賴', '加line', '徵信', '代儲', '色情', '援交',
+]
+export function isBadText(text) {
+  const t = String(text).toLowerCase().replace(/\s/g, '')
+  return BAD_WORDS.some((w) => t.includes(w.toLowerCase()))
+}

@@ -946,6 +946,7 @@ function startLevel(idx) {
   initAudio()
   if (musicEnabled) music.start()
   resetGame(idx)
+  bumpPlays()                 // 累計遊玩場次 +1
   overlay.classList.add('hidden')
   hud.msg.classList.add('hidden')
   canvas.requestPointerLock()
@@ -1069,6 +1070,86 @@ async function showLevelRank(levelName, score) {
     : ''
 }
 
+// ============================================================
+//  社群：線上人數 / 累計遊玩 / 留言板 / 上線歷史（後端離線時各自靜默）
+// ============================================================
+async function postHeartbeat() {
+  try { await fetch('/api/heartbeat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ deviceId }) }) } catch {}
+}
+async function refreshOnline() {
+  try { const r = await fetch('/api/online'); if (r.ok) { const j = await r.json(); const el = document.getElementById('online-n'); if (el && j.online != null) el.textContent = j.online } } catch {}
+}
+async function refreshTotals() {
+  try { const r = await fetch('/api/totals'); if (r.ok) { const j = await r.json(); const el = document.getElementById('total-plays'); if (el && j.plays != null) el.textContent = Number(j.plays).toLocaleString() } } catch {}
+}
+function bumpPlays() { fetch('/api/totals', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ runs: 1 }) }).catch(() => {}) }
+
+const timeAgo = (at) => {
+  const s = Math.max(0, (Date.now() - at) / 1000)
+  if (s < 60) return '剛剛'
+  if (s < 3600) return Math.floor(s / 60) + ' 分鐘前'
+  if (s < 86400) return Math.floor(s / 3600) + ' 小時前'
+  return Math.floor(s / 86400) + ' 天前'
+}
+// ---- 留言板 ----
+async function loadMessages() {
+  const list = document.getElementById('msg-list')
+  list.innerHTML = '<div class="m-empty">載入中…</div>'
+  let msgs = null
+  try { const r = await fetch('/api/messages'); if (r.ok) { const j = await r.json(); if (Array.isArray(j)) msgs = j } } catch {}
+  if (msgs === null) { list.innerHTML = '<div class="m-empty">留言板需連線到伺服器（線上版才可用）</div>'; return }
+  if (!msgs.length) { list.innerHTML = '<div class="m-empty">還沒有留言，搶頭香！</div>'; return }
+  list.innerHTML = msgs.map((m) =>
+    `<div class="msg-item"><div><span class="m-name">${escapeHtml(m.name)}</span>` +
+    `<span class="m-when">${timeAgo(m.at)}</span></div>` +
+    `<div class="m-text">${escapeHtml(m.text)}</div></div>`).join('')
+}
+async function sendMessage() {
+  const input = document.getElementById('msg-text')
+  const text = input.value.trim()
+  if (!text) return
+  const btn = document.getElementById('msg-send'); btn.disabled = true
+  try {
+    const r = await fetch('/api/messages', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: playerName || '匿名', text, deviceId }),
+    })
+    const j = await r.json().catch(() => ({}))
+    if (r.ok && j.ok) { input.value = ''; await loadMessages() }
+    else if (j.error === 'too fast') alert('留言太頻繁，請稍候再試')
+    else if (j.error === 'blocked') alert('留言含不當字詞，已擋下')
+    else alert('留言失敗（需連線到線上版）')
+  } catch { alert('留言失敗（需連線到線上版）') }
+  btn.disabled = false
+}
+// ---- 上線人數歷史 ----
+const dayLabel = (at) => { const d = new Date(at); return `${d.getMonth() + 1}/${d.getDate()}` }
+async function openOnline() {
+  const body = document.getElementById('online-body')
+  body.innerHTML = '<div class="on-empty">載入中…</div>'
+  document.getElementById('online-modal').classList.remove('hidden')
+  let online = null, hist = []
+  try { const r = await fetch('/api/online'); if (r.ok) online = (await r.json()).online } catch {}
+  try { const r = await fetch('/api/online-history'); if (r.ok) { const j = await r.json(); if (Array.isArray(j)) hist = j } } catch {}
+  const nowLine = `<div class="on-now">目前線上 <b>${online != null ? online : '–'}</b> 人 · 最近 7 天每日尖峰</div>`
+  if (!hist.length) { body.innerHTML = nowLine + '<div class="on-empty">還沒有歷史資料，等大家上線後逐日記錄</div>'; return }
+  const W = 300, H = 120, padX = 24, padY = 18
+  const max = Math.max(1, ...hist.map((d) => d.peak))
+  const n = hist.length
+  const pts = hist.map((d, i) => {
+    const x = n <= 1 ? W / 2 : padX + (i / (n - 1)) * (W - 2 * padX)
+    const y = padY + (1 - d.peak / max) * (H - 2 * padY)
+    return { x, y, peak: d.peak, label: dayLabel(d.at) }
+  })
+  const poly = pts.map((p) => `${p.x},${p.y}`).join(' ')
+  const dots = pts.map((p) =>
+    `<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="#e0533b"/>` +
+    `<text x="${p.x}" y="${p.y - 7}" fill="#666" font-size="10" font-weight="bold" text-anchor="middle">${p.peak}</text>` +
+    `<text x="${p.x}" y="${H - 3}" fill="#999" font-size="9" text-anchor="middle">${p.label}</text>`).join('')
+  body.innerHTML = nowLine +
+    `<svg viewBox="0 0 ${W} ${H}"><polyline points="${poly}" fill="none" stroke="#e0533b" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>${dots}</svg>`
+}
+
 // ---- 登入頁 / 排行榜彈窗 ----
 const landing = document.getElementById('landing')
 const nameInput = document.getElementById('name-input')
@@ -1088,6 +1169,7 @@ function showLanding() {
   refreshStartBtn()
   landing.classList.remove('hidden')
   nameInput.focus()
+  refreshOnline(); refreshTotals()   // 更新線上人數與累計場次
 }
 function beginFromLanding() {
   if (nameInput.value.trim().length === 0) return
@@ -1112,6 +1194,22 @@ function openLB(levelName) {
 document.getElementById('lb-close').addEventListener('click', () => lbModal.classList.add('hidden'))
 lbModal.addEventListener('click', (e) => { if (e.target === lbModal) lbModal.classList.add('hidden') })
 for (const id of ['lb-btn-landing', 'lb-btn-menu']) document.getElementById(id).addEventListener('click', () => openLB())
+
+// ---- 留言板 / 上線人數 彈窗 ----
+const msgModal = document.getElementById('msg-modal'), onlineModal = document.getElementById('online-modal')
+function openMsg() { loadMessages(); msgModal.classList.remove('hidden') }
+document.getElementById('msg-btn-landing').addEventListener('click', openMsg)
+document.getElementById('online-btn-landing').addEventListener('click', openOnline)
+document.getElementById('msg-send').addEventListener('click', sendMessage)
+document.getElementById('msg-text').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage() })
+// 關閉鈕（data-close）與點背景關閉
+for (const btn of document.querySelectorAll('.mclose[data-close]')) {
+  btn.addEventListener('click', () => document.getElementById(btn.dataset.close).classList.add('hidden'))
+}
+for (const m of [msgModal, onlineModal]) m.addEventListener('click', (e) => { if (e.target === m) m.classList.add('hidden') })
+// 心跳 + 線上人數：載入即上報，之後每 60 秒
+postHeartbeat(); refreshOnline(); refreshTotals()
+setInterval(() => { postHeartbeat(); refreshOnline() }, 60000)
 
 document.getElementById('retry').addEventListener('click', () => startLevel(currentLevel))
 document.getElementById('next').addEventListener('click', () => startLevel(currentLevel + 1))

@@ -17,3 +17,34 @@ CREATE TABLE IF NOT EXISTS rate (
   k TEXT PRIMARY KEY,
   last_at INTEGER NOT NULL
 );
+
+-- 在線（心跳）：近 90 秒活躍裝置
+CREATE TABLE IF NOT EXISTS presence (
+  device_id TEXT PRIMARY KEY,
+  last_seen INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_presence_seen ON presence (last_seen);
+
+-- 每日上線尖峰人數（day = floor(ms/86400000)），供 7 天折線
+CREATE TABLE IF NOT EXISTS online_daily (
+  day INTEGER PRIMARY KEY,
+  peak INTEGER NOT NULL
+);
+
+-- 留言板（parent_id 有值＝回覆）
+CREATE TABLE IF NOT EXISTS messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT,
+  text TEXT,
+  device_id TEXT,
+  created_at INTEGER,
+  parent_id INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_messages_id ON messages (id DESC);
+
+-- 全服累計統計（單列 id=1）：遊玩場次
+CREATE TABLE IF NOT EXISTS stats (
+  id INTEGER PRIMARY KEY,
+  plays INTEGER NOT NULL DEFAULT 0
+);
+INSERT OR IGNORE INTO stats (id) VALUES (1);

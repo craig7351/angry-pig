@@ -119,12 +119,24 @@
     #start-btn:disabled { background: #e9a99d; box-shadow: none; cursor: not-allowed; }
     #name-hint { font-size: 12px; color: #e0533b; font-weight: 700; margin: 8px 0 2px; }
     .landing-card .tip { font-size: 11px; color: #999; margin-top: 16px; }
-    #lb-btn-landing { margin-top: 12px; }
+    /* 登入頁：線上人數、功能鈕、FB、統計 */
+    #online-badge { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 14px;
+      font-size: 13px; font-weight: 800; color: #2e9e5b; background: #eafaf0; border-radius: 999px; padding: 5px 12px; }
+    #online-badge .dot { width: 8px; height: 8px; border-radius: 50%; background: #34c759;
+      box-shadow: 0 0 0 0 rgba(52,199,89,.6); animation: pulse 1.6s infinite; }
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(52,199,89,.5); } 70% { box-shadow: 0 0 0 7px rgba(52,199,89,0); } 100% { box-shadow: 0 0 0 0 rgba(52,199,89,0); } }
+    .landing-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+    .landing-btns .ghost { font-size: 14px; padding: 9px 14px; }
+    #fb-link { display: block; margin-top: 12px; padding: 11px; border-radius: 999px; font-weight: 800; font-size: 15px;
+      color: #fff; background: #1877f2; text-decoration: none; box-shadow: 0 6px 16px rgba(24,119,242,.35); }
+    #fb-link:hover { background: #3b8bf5; }
+    .landing-stat { font-size: 13px; color: #666; margin-top: 14px; }
+    .landing-stat b { color: #e0533b; font-weight: 800; }
 
-    /* 排行榜彈窗 */
-    #lb-modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    /* 彈窗（排行榜 / 留言板 / 上線人數 共用） */
+    .modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
       background: rgba(0,0,0,.55); z-index: 15; }
-    #lb-modal.hidden { display: none; }
+    .modal.hidden { display: none; }
     .lb-card { background: #fff; color: #222; border-radius: 18px; width: 90%; max-width: 440px; max-height: 80vh;
       display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.4); }
     .lb-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px;
@@ -158,6 +170,27 @@
     .menu-actions { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
     #who { font-size: 13px; font-weight: 700; color: #555; }
     #who b { color: #e0533b; }
+
+    /* 留言板 */
+    .msg-compose { display: flex; gap: 8px; padding: 12px 16px 4px; }
+    #msg-text { flex: 1; min-width: 0; font-size: 14px; padding: 9px 12px; border: 2px solid #e6e6ee;
+      border-radius: 10px; outline: none; color: #222; }
+    #msg-text:focus { border-color: #e0533b; }
+    #msg-send { padding: 9px 16px; font-size: 14px; }
+    #msg-list { overflow-y: auto; padding: 10px 16px 18px; }
+    .msg-item { padding: 9px 6px; border-bottom: 1px solid #f2f2f5; font-size: 14px; text-align: left; }
+    .msg-item .m-name { font-weight: 800; color: #e0533b; }
+    .msg-item .m-when { font-size: 11px; color: #aaa; margin-left: 6px; }
+    .msg-item .m-text { color: #333; margin-top: 2px; word-break: break-word; }
+    .msg-item .m-reply { border-left: 3px solid #f0d0c6; margin: 4px 0 0 10px; padding-left: 8px; }
+    .m-empty { text-align: center; color: #999; padding: 24px; font-size: 14px; }
+
+    /* 上線人數圖表 */
+    #online-body { padding: 14px 16px 20px; }
+    .on-now { text-align: center; font-size: 14px; color: #444; margin-bottom: 10px; }
+    .on-now b { color: #2e9e5b; font-size: 20px; }
+    #online-body svg { width: 100%; height: auto; }
+    .on-empty { text-align: center; color: #999; padding: 20px; font-size: 14px; }
   </style>
 </head>
 <body>
@@ -216,20 +249,47 @@
     <div class="landing-card">
       <h1>🐷 Angry Pig</h1>
       <p class="landing-sub">第一人稱 3D 投擲破壞 · 憤怒鳥風格</p>
+      <div id="online-badge"><span class="dot"></span> 線上 <b id="online-n">–</b> 人</div>
       <input id="name-input" maxlength="12" placeholder="輸入你的名字" autocomplete="off" />
       <button id="start-btn" disabled>▶ 開始遊戲</button>
       <p id="name-hint">請先輸入名字才能開始</p>
-      <button id="lb-btn-landing" class="ghost">🏆 排行榜</button>
+      <div class="landing-btns">
+        <button id="lb-btn-landing" class="ghost">🏆 排行榜</button>
+        <button id="msg-btn-landing" class="ghost">💬 留言板</button>
+        <button id="online-btn-landing" class="ghost">📈 上線人數</button>
+      </div>
+      <a id="fb-link" href="https://www.facebook.com/people/Book-Ai/61584339789020/" target="_blank" rel="noopener">👍 追蹤 Book Ai 粉絲團</a>
+      <p class="landing-stat">🎮 累計遊玩 <b id="total-plays">–</b> 場</p>
       <p class="tip">名字存在這台裝置，並記錄你的最高分</p>
     </div>
   </div>
 
   <!-- 排行榜彈窗 -->
-  <div id="lb-modal" class="hidden">
+  <div id="lb-modal" class="modal hidden">
     <div class="lb-card">
-      <div class="lb-head"><span>🏆 排行榜（最高分）</span><button id="lb-close">✕</button></div>
+      <div class="lb-head"><span>🏆 排行榜（最高分）</span><button id="lb-close" class="mclose">✕</button></div>
       <div class="lb-filter"><label>關卡</label><select id="lb-level"></select></div>
       <div id="lb-list"></div>
+    </div>
+  </div>
+
+  <!-- 留言板彈窗 -->
+  <div id="msg-modal" class="modal hidden">
+    <div class="lb-card">
+      <div class="lb-head"><span>💬 留言板</span><button class="mclose" data-close="msg-modal">✕</button></div>
+      <div class="msg-compose">
+        <input id="msg-text" maxlength="120" placeholder="留個言…（最多 120 字）" autocomplete="off" />
+        <button id="msg-send">送出</button>
+      </div>
+      <div id="msg-list"></div>
+    </div>
+  </div>
+
+  <!-- 上線人數彈窗（近 7 天折線） -->
+  <div id="online-modal" class="modal hidden">
+    <div class="lb-card">
+      <div class="lb-head"><span>📈 上線人數</span><button class="mclose" data-close="online-modal">✕</button></div>
+      <div id="online-body"></div>
     </div>
   </div>
 
