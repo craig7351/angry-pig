@@ -1427,6 +1427,7 @@ window.addEventListener('mouseup', (e) => { if (e.button === 0) fireUp() })
 
 // ---- 手機：虛擬搖桿（控準星方向）+ 發射鈕 ----
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window
+if (IS_TOUCH) document.body.classList.add('touch')   // 供 CSS 調整版面（例如蓄力條上移避開搖桿）
 const LOOK_RATE = 0.95   // 虛擬搖桿轉視角速率（越低越不靈敏）
 let lookX = 0, lookY = 0
 const touchControls = document.getElementById('touch-controls')

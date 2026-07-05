@@ -21,6 +21,8 @@
       z-index: 7; touch-action: none; padding: 0; line-height: 1.1; font-size: 16px; font-weight: 800; color: #fff;
       background: rgba(224,83,59,.9); border: 3px solid rgba(255,255,255,.55); box-shadow: 0 4px 14px rgba(0,0,0,.35); }
     #fire-btn:active { background: rgba(200,60,40,.98); transform: scale(.95); }
+    /* 觸控裝置：蓄力條上移到搖桿上方，避免被搖桿/發射鈕遮住 */
+    body.touch #power { bottom: 158px; }
     #pause-btn { position: fixed; top: 12px; right: 12px; z-index: 7; width: 44px; height: 44px; border-radius: 50%;
       padding: 0; font-size: 20px; color: #fff; background: rgba(0,0,0,.4); border: 2px solid rgba(255,255,255,.45);
       box-shadow: none; }
