@@ -868,6 +868,18 @@ const LEVELS = [
       pigColumn(-1.5, -8, 1); pigColumn(1.5, -8, 1)  // 前排動物
     }
   },
+  {
+    // 天空要塞：集大成終局 — 中央紙箱大樓 + 兩側爆裂高塔 + 難拆硬箱塔 + 縱深後排
+    name: '天空要塞', ammo: 14, build() {
+      plankTower(0, -15, 5)                                        // 中央超高紙箱大樓
+      tower(-4.5, -12, 5, 'gastank'); tower(4.5, -12, 5, 'barrel') // 兩側爆裂地基高塔
+      addBody(nextAnimal(), -2.4, -9, hardColumn(-2.4, -9, 3))     // 前排硬箱塔（難震下）+ 動物
+      addBody(nextAnimal(), 2.4, -9, hardColumn(2.4, -9, 3))
+      addBody('gastank', 0, -10, 0)                               // 中央前線地基弱點
+      for (const x of [-3.5, 0, 3.5]) addBody('sack', x, -6.5, 0) // 前線沙包掩體
+      pigColumn(-1.5, -17, 2); pigColumn(1.5, -17, 2)             // 縱深後排
+    }
+  },
 ]
 
 function resetGame(idx) {
@@ -979,10 +991,11 @@ function startEndless() {
   game = { score: 0, ammo: 0, ammoStart: 0, pigs: 0, over: false, cooldown: 0, emptyT: 0, startT: 0, armed: false, intro: false, introT: 0, winDelay: 0, endless: true, wave: 0, paused: false }
   bumpPlays()
   overlay.classList.add('hidden'); hud.msg.classList.add('hidden')
+  document.getElementById('landing').classList.add('hidden')
   document.getElementById('pause').classList.add('hidden')
-  document.getElementById('pause-hint').classList.remove('hidden')   // 顯示 Esc 暫停提示
+  document.getElementById('pause-hint').classList.toggle('hidden', IS_TOUCH)   // 桌機顯示 Esc 提示；手機用暫停鈕
   nextWave()
-  canvas.requestPointerLock()
+  if (!IS_TOUCH) canvas.requestPointerLock()   // 觸控裝置不用指標鎖定，改用虛擬搖桿
 }
 function nextWave() {
   clearWorld()
@@ -1019,23 +1032,31 @@ function showWaveBanner(wave, refill) {
   el.classList.toggle('boss', boss)
   el.classList.remove('hidden'); el.classList.remove('show'); void el.offsetWidth; el.classList.add('show')
 }
-// 暫停 / 繼續 / 結束（死鬥模式）
+// 暫停 / 繼續 / 結束（死鬥模式用 Esc；手機用暫停鈕，一般關卡也適用）
 function pauseGame() {
-  if (!game || game.over || game.paused) return
+  if (!game || game.over || game.paused || game.intro) return
   game.paused = true
-  document.getElementById('pause-text').textContent = `第 ${game.wave} 波・目前得分 ${game.score}`
+  const endBtn = document.getElementById('end-btn')
+  if (game.endless) {
+    document.getElementById('pause-text').textContent = `第 ${game.wave} 波・目前得分 ${game.score}`
+    endBtn.textContent = '☠️ 結束死鬥'
+  } else {
+    document.getElementById('pause-text').textContent = `${LEVELS[currentLevel].name}・目前得分 ${game.score}`
+    endBtn.textContent = '← 回選單'
+  }
   document.getElementById('pause').classList.remove('hidden')
 }
 function resumeGame() {
   if (!game) return
   game.paused = false
   document.getElementById('pause').classList.add('hidden')
-  canvas.requestPointerLock()
+  if (!IS_TOUCH) canvas.requestPointerLock()   // 觸控裝置不用指標鎖定，改用虛擬搖桿
 }
-function endEndlessFromPause() {
+function pauseEnd() {
   game.paused = false
   document.getElementById('pause').classList.add('hidden')
-  endEndless()
+  if (game.endless) endEndless()   // 死鬥：結算送分；一般關卡：回選單
+  else showMenu()
 }
 
 // ---- 關卡選擇畫面 ----
@@ -1081,7 +1102,7 @@ function startLevel(idx) {
   bumpPlays()                 // 累計遊玩場次 +1
   overlay.classList.add('hidden')
   hud.msg.classList.add('hidden')
-  canvas.requestPointerLock()
+  if (!IS_TOUCH) canvas.requestPointerLock()   // 觸控裝置不用指標鎖定，改用虛擬搖桿
 }
 
 // ---- 背景音樂開關（記憶偏好）----
@@ -1286,19 +1307,26 @@ async function openOnline() {
 const landing = document.getElementById('landing')
 const nameInput = document.getElementById('name-input')
 const startBtn = document.getElementById('start-btn')
+const endlessBtn = document.getElementById('endless-btn')
 const lbModal = document.getElementById('lb-modal')
 function refreshStartBtn() {
   const ok = nameInput.value.trim().length > 0
   startBtn.disabled = !ok
+  endlessBtn.disabled = !ok
   document.getElementById('name-hint').style.visibility = ok ? 'hidden' : 'visible'
+  if (ok) setPlayerName(nameInput.value)   // 即時存名字，供排行榜/留言/死鬥使用
 }
 function showLanding() {
   exitLock()
   hud.msg.classList.add('hidden')
   overlay.classList.add('hidden')
   lbModal.classList.add('hidden')
+  document.getElementById('pause').classList.add('hidden')
+  document.getElementById('pause-hint').classList.add('hidden')
+  if (game) game.paused = false
   nameInput.value = playerName
   refreshStartBtn()
+  updateMusicBtn()                    // 音樂鈕現在在首頁
   landing.classList.remove('hidden')
   nameInput.focus()
   refreshOnline(); refreshTotals()   // 更新線上人數與累計場次
@@ -1312,7 +1340,8 @@ function beginFromLanding() {
 nameInput.addEventListener('input', refreshStartBtn)
 nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') beginFromLanding() })
 startBtn.addEventListener('click', beginFromLanding)
-document.getElementById('rename-btn').addEventListener('click', showLanding)
+endlessBtn.addEventListener('click', () => { if (nameInput.value.trim().length === 0) return; setPlayerName(nameInput.value); startEndless() })
+document.getElementById('to-home').addEventListener('click', showLanding)
 const lbLevelSel = document.getElementById('lb-level')
 // 關卡下拉：全部 + 各關名稱
 lbLevelSel.innerHTML = '<option value="">全部關卡</option>' +
@@ -1326,7 +1355,7 @@ function openLB(levelName) {
 }
 document.getElementById('lb-close').addEventListener('click', () => lbModal.classList.add('hidden'))
 lbModal.addEventListener('click', (e) => { if (e.target === lbModal) lbModal.classList.add('hidden') })
-for (const id of ['lb-btn-landing', 'lb-btn-menu']) document.getElementById(id).addEventListener('click', () => openLB())
+document.getElementById('lb-btn-landing').addEventListener('click', () => openLB())
 
 // ---- 留言板 / 上線人數 彈窗 ----
 const msgModal = document.getElementById('msg-modal'), onlineModal = document.getElementById('online-modal')
@@ -1344,7 +1373,6 @@ for (const m of [msgModal, onlineModal]) m.addEventListener('click', (e) => { if
 postHeartbeat(); refreshOnline(); refreshTotals()
 setInterval(() => { postHeartbeat(); refreshOnline() }, 60000)
 
-document.getElementById('endless-btn').addEventListener('click', startEndless)
 document.getElementById('retry').addEventListener('click', () => (game && game.endless ? startEndless() : startLevel(currentLevel)))
 document.getElementById('next').addEventListener('click', () => startLevel(currentLevel + 1))
 for (const id of ['to-menu', 'to-menu2']) {
@@ -1353,7 +1381,8 @@ for (const id of ['to-menu', 'to-menu2']) {
 }
 document.getElementById('music-toggle').addEventListener('click', toggleMusic)
 document.getElementById('resume-btn').addEventListener('click', resumeGame)
-document.getElementById('end-btn').addEventListener('click', endEndlessFromPause)
+document.getElementById('end-btn').addEventListener('click', pauseEnd)
+document.getElementById('pause-btn').addEventListener('click', pauseGame)   // 手機暫停鈕
 document.addEventListener('keydown', (e) => { if (e.key === 'm' || e.key === 'M') toggleMusic() })
 
 document.addEventListener('pointerlockchange', () => {
@@ -1374,23 +1403,59 @@ document.addEventListener('mousemove', (e) => {
   pitch = Math.max(-1.45, Math.min(1.0, pitch))
   camera.rotation.y = yaw; camera.rotation.x = pitch
 })
-canvas.addEventListener('mousedown', (e) => {
-  if (e.button !== 0) return
-  // 未鎖定（例如剛從暫停繼續、瀏覽器冷卻擋掉自動鎖定）→ 點畫面重新鎖定
-  if (!locked) { if (game && !game.over && !game.paused) canvas.requestPointerLock(); return }
-  if (game.over || game.paused) return
-  if (game.intro) { endIntro(); return }   // 開場運鏡中點一下 → 直接跳過
+// 開火：按下蓄力、放開發射（滑鼠與觸控共用）
+function fireDown() {
+  if (!game || game.over || game.paused) return
+  if (game.intro) { endIntro(); return }   // 開場運鏡中 → 直接跳過
   if (game.ammo <= 0 || game.cooldown > 0) return
   charging = true; chargeT = 0
-})
-window.addEventListener('mouseup', (e) => {
-  if (!charging || e.button !== 0) return
+}
+function fireUp() {
+  if (!charging) return
   const power = Math.max(0.12, Math.min(1, chargeT / CHARGE_TIME))
   charging = false; hideTrajectory(); hud.power.style.width = '0%'
-  throwBall(power)
-  sfx.throw()
+  throwBall(power); sfx.throw()
   game.ammo--; game.cooldown = 0.45; refreshHUD()
+}
+canvas.addEventListener('mousedown', (e) => {
+  if (e.button !== 0) return
+  // 未鎖定（剛從暫停繼續、或瀏覽器冷卻擋掉自動鎖定）→ 點畫面重新鎖定（觸控裝置不鎖定）
+  if (!locked) { if (!IS_TOUCH && game && !game.over && !game.paused) canvas.requestPointerLock(); return }
+  fireDown()
 })
+window.addEventListener('mouseup', (e) => { if (e.button === 0) fireUp() })
+
+// ---- 手機：虛擬搖桿（控準星方向）+ 發射鈕 ----
+const IS_TOUCH = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window
+const LOOK_RATE = 0.95   // 虛擬搖桿轉視角速率（越低越不靈敏）
+let lookX = 0, lookY = 0
+const touchControls = document.getElementById('touch-controls')
+{
+  const base = document.getElementById('joystick'), knob = document.getElementById('joy-knob')
+  const fireBtn = document.getElementById('fire-btn')
+  const JOY_R = 40
+  let joyId = null, cx = 0, cy = 0
+  const setKnob = (kx, ky) => { knob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))` }
+  const updateJoy = (t) => {
+    const dx = t.clientX - cx, dy = t.clientY - cy
+    const d = Math.hypot(dx, dy) || 1, m = Math.min(d, JOY_R), a = Math.atan2(dy, dx)
+    const kx = Math.cos(a) * m, ky = Math.sin(a) * m
+    setKnob(kx, ky); lookX = kx / JOY_R; lookY = ky / JOY_R
+  }
+  base.addEventListener('touchstart', (e) => {
+    const t = e.changedTouches[0]; joyId = t.identifier
+    const r = base.getBoundingClientRect(); cx = r.left + r.width / 2; cy = r.top + r.height / 2
+    updateJoy(t); e.preventDefault()
+  }, { passive: false })
+  window.addEventListener('touchmove', (e) => {
+    if (joyId == null) return
+    for (const t of e.changedTouches) if (t.identifier === joyId) { updateJoy(t); e.preventDefault() }
+  }, { passive: false })
+  const endJoy = (e) => { for (const t of e.changedTouches) if (t.identifier === joyId) { joyId = null; lookX = lookY = 0; setKnob(0, 0) } }
+  window.addEventListener('touchend', endJoy); window.addEventListener('touchcancel', endJoy)
+  fireBtn.addEventListener('touchstart', (e) => { e.preventDefault(); fireDown() }, { passive: false })
+  fireBtn.addEventListener('touchend', (e) => { e.preventDefault(); fireUp() }, { passive: false })
+}
 
 // ---- 開場運鏡 ----
 function fpsForward() {
@@ -1446,6 +1511,13 @@ function loop() {
       updateIntroCamera(game.introT / INTRO_DUR)
       if (game.introT >= INTRO_DUR) endIntro()
     } else {
+      // 手機虛擬搖桿：控準星方向
+      if (IS_TOUCH && (lookX || lookY)) {
+        yaw -= lookX * LOOK_RATE * dt
+        pitch -= lookY * LOOK_RATE * dt
+        pitch = Math.max(-1.45, Math.min(1.0, pitch))
+        camera.rotation.y = yaw; camera.rotation.x = pitch
+      }
       if (game.cooldown > 0) game.cooldown -= dt
       if (charging) {
         chargeT += dt
@@ -1551,6 +1623,13 @@ function loop() {
 
   // HUD 空中 BONUS 倍率條
   updateAirBonusHUD(flyBonus, flyHeight)
+
+  // 手機控制項：只在實際遊玩中顯示（選單/暫停/結算時隱藏）
+  if (touchControls) {
+    const playing = IS_TOUCH && !!game && !game.over && !game.paused &&
+      overlay.classList.contains('hidden') && landing.classList.contains('hidden')
+    touchControls.classList.toggle('show', playing)
+  }
 
   renderer.render(scene, camera)
 }

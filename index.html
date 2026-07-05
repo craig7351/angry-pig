@@ -3,12 +3,28 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>第一人稱丟球 — 3D 憤怒鳥</title>
+  <title>憤怒豬 Angry Pig</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; overflow: hidden; background: #6db8e8; }
     body { font-family: "Segoe UI", "Microsoft JhengHei", system-ui, sans-serif; }
-    #game { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+    #game { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; touch-action: none; }
+
+    /* 手機虛擬搖桿 + 發射鈕 */
+    #touch-controls { display: none; }
+    #touch-controls.show { display: block; }
+    #joystick { position: fixed; left: 24px; bottom: 24px; width: 120px; height: 120px; border-radius: 50%;
+      background: rgba(255,255,255,.14); border: 2px solid rgba(255,255,255,.4); z-index: 7; touch-action: none; }
+    #joy-knob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; border-radius: 50%;
+      background: rgba(255,255,255,.6); transform: translate(-50%,-50%); box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+    #fire-btn { position: fixed; right: 26px; bottom: 32px; width: 92px; height: 92px; border-radius: 50%;
+      z-index: 7; touch-action: none; padding: 0; line-height: 1.1; font-size: 16px; font-weight: 800; color: #fff;
+      background: rgba(224,83,59,.9); border: 3px solid rgba(255,255,255,.55); box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+    #fire-btn:active { background: rgba(200,60,40,.98); transform: scale(.95); }
+    #pause-btn { position: fixed; top: 12px; right: 12px; z-index: 7; width: 44px; height: 44px; border-radius: 50%;
+      padding: 0; font-size: 20px; color: #fff; background: rgba(0,0,0,.4); border: 2px solid rgba(255,255,255,.45);
+      box-shadow: none; }
+    #pause-btn:active { background: rgba(0,0,0,.6); }
 
     /* 準星 */
     #crosshair {
@@ -93,16 +109,16 @@
     .menu h2 { font-size: 26px; margin-bottom: 10px; }
     .menu .howto { font-size: 13px; color: #666; line-height: 1.7; margin-bottom: 22px; }
     .menu .tip { font-size: 12px; color: #999; margin-top: 20px; }
-    #level-list { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
-    .level-card { display: flex; flex-direction: column; align-items: center; gap: 6px;
-      width: 130px; padding: 18px 12px; border-radius: 14px; background: #f4f4f8;
-      box-shadow: 0 4px 12px rgba(0,0,0,.08); cursor: pointer; transition: transform .12s, box-shadow .12s; }
+    #level-list { display: grid; grid-template-columns: repeat(5, 84px); gap: 10px; justify-content: center; }
+    .level-card { display: flex; flex-direction: column; align-items: center; gap: 3px;
+      width: 84px; padding: 10px 6px; border-radius: 12px; background: #f4f4f8;
+      box-shadow: 0 3px 8px rgba(0,0,0,.08); cursor: pointer; transition: transform .12s, box-shadow .12s; }
     .level-card:hover:not(.locked) { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,.16); background: #fff; }
     .level-card.locked { cursor: not-allowed; opacity: .55; }
-    .level-card .lv-num { font-size: 30px; font-weight: 800; color: #e0533b; line-height: 1; }
+    .level-card .lv-num { font-size: 22px; font-weight: 800; color: #e0533b; line-height: 1; }
     .level-card.locked .lv-num { color: #aaa; }
-    .level-card .lv-name { font-size: 14px; font-weight: 600; color: #444; }
-    .level-card .lv-stars .cs { font-size: 20px; color: #d9d9e0; }
+    .level-card .lv-name { font-size: 12px; font-weight: 600; color: #444; }
+    .level-card .lv-stars .cs { font-size: 14px; color: #d9d9e0; }
     .level-card .lv-stars .cs.on { color: #ffc32b; }
     .box h2 { font-size: 26px; margin-bottom: 10px; }
     .box p { font-size: 14px; color: #555; line-height: 1.7; margin-bottom: 18px; }
@@ -136,7 +152,9 @@
       border: 2px solid #e6e6ee; border-radius: 12px; outline: none; margin-bottom: 14px; color: #222; }
     #name-input:focus { border-color: #e0533b; }
     #start-btn { width: 100%; font-size: 18px; padding: 14px; }
-    #start-btn:disabled { background: #e9a99d; box-shadow: none; cursor: not-allowed; }
+    #start-btn:disabled, #endless-btn:disabled { background: #cfcfd6; box-shadow: none; cursor: not-allowed; }
+    #endless-btn { width: 100%; font-size: 16px; padding: 12px; margin-top: 10px; background: #b23; }
+    #endless-btn:hover:not(:disabled) { background: #9c1f2b; }
     #name-hint { font-size: 12px; color: #e0533b; font-weight: 700; margin: 8px 0 2px; }
     .landing-card .tip { font-size: 11px; color: #999; margin-top: 16px; }
     /* 登入頁：線上人數、功能鈕、FB、統計 */
@@ -225,6 +243,13 @@
   </div>
   <div id="power"><div id="power-fill"></div></div>
 
+  <!-- 手機虛擬搖桿（控準星）+ 發射鈕 -->
+  <div id="touch-controls">
+    <div id="joystick"><div id="joy-knob"></div></div>
+    <button id="fire-btn">發射</button>
+    <button id="pause-btn">⏸</button>
+  </div>
+
   <div id="wave-banner" class="hidden"></div>
   <div id="pause-hint" class="hidden"><kbd>Esc</kbd> 暫停 / 結束</div>
 
@@ -248,20 +273,13 @@
 
   <div id="overlay">
     <div class="menu">
-      <h2>🎯 第一人稱丟球 · 3D 憤怒鳥</h2>
+      <h2>🎯 選擇關卡</h2>
       <p class="howto">
-        <kbd>移動滑鼠</kbd> 瞄準　<kbd>按住左鍵</kbd> 蓄力　<kbd>放開</kbd> 丟球　把動物 🐷🐑🐔🐱🐕 撞下箱子摔到地板就消滅<br>
-        打中爆炸桶 🛢️ 會把周圍的豬震飛落地。遊戲中按 <kbd>Esc</kbd> 可返回本選單。
+        <kbd>移動滑鼠</kbd> 瞄準　<kbd>按住左鍵</kbd> 蓄力　<kbd>放開</kbd> 丟球　把動物撞下箱子摔到地板就消滅<br>
+        遊戲中按 <kbd>Esc</kbd> 返回 ·　<kbd>M</kbd> 開關音樂
       </p>
       <div id="level-list"></div>
-      <button id="endless-btn" style="margin-top:16px">☠️ 死鬥模式（無限波）</button>
-      <div class="menu-actions">
-        <span id="who"></span>
-        <button id="rename-btn" class="ghost">✏️ 改名</button>
-        <button id="lb-btn-menu" class="ghost">🏆 排行榜</button>
-        <button id="music-toggle" class="ghost">🔊 音樂：開</button>
-      </div>
-      <p class="tip">選擇關卡開始（會鎖定滑鼠）· 過關後解鎖下一關 · 遊戲中按 <kbd>M</kbd> 開關音樂</p>
+      <button id="to-home" class="ghost" style="margin-top:18px">← 返回首頁</button>
     </div>
   </div>
 
@@ -283,20 +301,22 @@
   <!-- 登入頁：輸入名字才能開始 -->
   <div id="landing" class="hidden">
     <div class="landing-card">
-      <h1>🐷 Angry Pig</h1>
-      <p class="landing-sub">第一人稱 3D 投擲破壞 · 憤怒鳥風格</p>
+      <h1>🐷 憤怒豬</h1>
+      <p class="landing-sub">Angry Pig · 第一人稱 3D 投擲破壞</p>
       <div id="online-badge"><span class="dot"></span> 線上 <b id="online-n">–</b> 人</div>
       <input id="name-input" maxlength="12" placeholder="輸入你的名字" autocomplete="off" />
-      <button id="start-btn" disabled>▶ 開始遊戲</button>
+      <button id="start-btn" disabled>▶ 開始遊戲（選關卡）</button>
+      <button id="endless-btn" disabled>☠️ 死鬥模式（無限波）</button>
       <p id="name-hint">請先輸入名字才能開始</p>
       <div class="landing-btns">
         <button id="lb-btn-landing" class="ghost">🏆 排行榜</button>
         <button id="msg-btn-landing" class="ghost">💬 留言板</button>
         <button id="online-btn-landing" class="ghost">📈 上線人數</button>
+        <button id="music-toggle" class="ghost">🔊 音樂：開</button>
       </div>
       <a id="fb-link" href="https://www.facebook.com/people/Book-Ai/61584339789020/" target="_blank" rel="noopener">👍 追蹤 Book Ai 粉絲團</a>
       <p class="landing-stat">🎮 累計遊玩 <b id="total-plays">–</b> 場</p>
-      <p class="tip">名字存在這台裝置，並記錄你的最高分</p>
+      <p class="tip">名字存在這台裝置，並記錄你的最高分 · 選關會鎖定滑鼠</p>
     </div>
   </div>
 
