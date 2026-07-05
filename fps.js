@@ -20,12 +20,16 @@ const INTRO_DUR = 8.0
 const ORBIT_CENTER = new THREE.Vector3(0, 3, -9)  // 環繞中心（關卡中央）
 const ORBIT_R = 18, ORBIT_H = 13                  // 環繞半徑與高度
 
+// 觸控裝置（手機/平板）：降低解析度與陰影負擔，減少發熱耗電
+const IS_TOUCH = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window
+if (IS_TOUCH) document.body.classList.add('touch')
+
 // ---- three ----
 const canvas = document.getElementById('game')
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !IS_TOUCH })   // 手機關 MSAA（配合降 DPR 省電）
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, IS_TOUCH ? 1.5 : 2))
 renderer.shadowMap.enabled = true
-renderer.shadowMap.type = THREE.PCFSoftShadowMap
+renderer.shadowMap.type = IS_TOUCH ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap
 // 卡通鮮豔氛圍：ACES 色調映射 + 略微提亮曝光，讓草地天空更有層次
 renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.toneMappingExposure = 1.08
@@ -52,7 +56,7 @@ scene.add(new THREE.HemisphereLight(0xbfe4ff, 0x6b7a3a, 0.95))
 const sun = new THREE.DirectionalLight(0xfff0d0, 2.7)
 sun.position.set(-12, 22, 8)
 sun.castShadow = true
-sun.shadow.mapSize.set(2048, 2048)
+sun.shadow.mapSize.set(IS_TOUCH ? 1024 : 2048, IS_TOUCH ? 1024 : 2048)
 sun.shadow.bias = -0.0004
 Object.assign(sun.shadow.camera, { left: -22, right: 22, top: 22, bottom: -22, near: 1, far: 80 })
 scene.add(sun)
@@ -559,7 +563,7 @@ function explode(pos, R = 4) {
   const flash = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 12),
     new THREE.MeshBasicMaterial({ color: 0xffcc44, transparent: true, opacity: 0.9 }))
   flash.position.copy(pos); scene.add(flash); flashes.push({ mesh: flash, t: 0 })
-  sfx.explode()
+  sfx.explode(); addShake(0.8)   // 爆炸也震一下
   for (const e of entities) {
     if (e.dead) continue
     const d = e.body.position.distanceTo(pos)
@@ -584,6 +588,14 @@ function playClack(v, soft) {
   const t = performance.now()
   if (t - lastClack > 40) { lastClack = t; sfx.wood(v, soft) }   // 全域節流，避免整棟崩塌時爆音
 }
+let lastStomp = 0
+function playStomp(v) {
+  const t = performance.now()
+  if (t - lastStomp > 90) { lastStomp = t; sfx.stomp(v) }
+}
+// ---- 畫面震動 ----
+let shakeMag = 0
+function addShake(v) { shakeMag = Math.min(1.5, shakeMag + v) }
 function throwBall(power) {
   const dir = new THREE.Vector3()
   camera.getWorldDirection(dir)
@@ -723,6 +735,8 @@ function throwSummon() {
   }
   body._ent = ent
   entities.push(ent)   // 不放 balls；非目標，不計入 game.pigs、不被 killAnimal
+  sfx.summon(); addShake(1.2)                                   // 吼叫 + 發射大震
+  if (IS_TOUCH && navigator.vibrate) navigator.vibrate(120)    // 手機震動回饋
 }
 function throwSpecial(kind, power) {
   if (kind === 'bomb') throwBomb(power)
@@ -1607,8 +1621,6 @@ canvas.addEventListener('mousedown', (e) => {
 window.addEventListener('mouseup', (e) => { if (e.button === 0) fireUp() })
 
 // ---- 手機：虛擬搖桿（控準星方向）+ 發射鈕 ----
-const IS_TOUCH = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window
-if (IS_TOUCH) document.body.classList.add('touch')   // 供 CSS 調整版面（例如蓄力條上移避開搖桿）
 const LOOK_RATE = 0.48   // 虛擬搖桿轉視角速率（越低越不靈敏）
 let lookX = 0, lookY = 0
 const touchControls = document.getElementById('touch-controls')
@@ -1773,6 +1785,7 @@ function loop() {
           o.body.applyImpulse(new CANNON.Vec3(
             (e.dir.x * 16 + dx * inv * 5) * m, 12 * m, (e.dir.z * 16 + dz * inv * 5) * m),
             new CANNON.Vec3(0, 0, 0))
+          playStomp(4)                                  // 撞飛：悶重撞擊聲（不再震動，避免頭暈）
         }
       }
       if (e.type === 'split' && e.born > 0.3 && !e.split) { e.split = true; doSplit(e) }   // 分裂成霰彈
@@ -1834,15 +1847,30 @@ function loop() {
     touchControls.classList.toggle('show', playing)
   }
 
+  // 畫面震動（FPS 遊玩中）：以 EYE + (pitch,yaw) 為基準加抖動，衰減後還原
+  if (shakeMag > 0.001 && game && !game.intro && !game.over && !game.paused) {
+    const s = shakeMag, R = () => (Math.random() * 2 - 1)
+    camera.position.set(EYE.x + R() * s * 0.18, EYE.y + R() * s * 0.18, EYE.z + R() * s * 0.18)
+    camera.rotation.set(pitch + R() * s * 0.03, yaw + R() * s * 0.03, R() * s * 0.03)
+    shakeMag = Math.max(0, shakeMag - dt * 4)
+    if (shakeMag <= 0.001) { camera.position.copy(EYE); camera.rotation.set(pitch, yaw, 0) }   // 還原
+  }
+
   renderer.render(scene, camera)
 }
 
 function resize() {
-  const w = canvas.clientWidth, h = canvas.clientHeight
-  renderer.setSize(w, h, false)
+  // 用實際可視尺寸（iOS 上 innerHeight 會排除瀏覽器工具列），避免畫布比可視區高導致瞄準中心偏移
+  const w = window.innerWidth, h = window.innerHeight
+  renderer.setSize(w, h)   // updateStyle=true：畫布 CSS 尺寸 = 可視區
   camera.aspect = w / h; camera.updateProjectionMatrix()
+  // 準星對齊畫布正中心（= 相機瞄準點），不靠 CSS 50% 以免 iOS 視窗高度差造成偏移
+  const cx = document.getElementById('crosshair')
+  cx.style.left = (w / 2) + 'px'; cx.style.top = (h / 2) + 'px'
 }
 window.addEventListener('resize', resize)
+window.addEventListener('orientationchange', resize)
+if (window.visualViewport) window.visualViewport.addEventListener('resize', resize)
 
 loadAll().then(() => {
   buildEnvironment()

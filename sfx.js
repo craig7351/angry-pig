@@ -76,6 +76,18 @@ export const sfx = {
     blip({ freq: 520, type: 'triangle', dur: 0.12, gain: 0.35, sweep: 950 })
     noise({ dur: 0.08, gain: 0.18, type: 'highpass', freq: 1200 })
   },
+  // 召喚豬：厚重巨獸吼叫（發射瞬間）
+  summon() {
+    blip({ freq: 240, type: 'sawtooth', dur: 0.65, gain: 0.5, sweep: 55 })
+    blip({ freq: 120, type: 'square', dur: 0.55, gain: 0.35, sweep: 40 })
+    noise({ dur: 0.5, gain: 0.4, type: 'lowpass', freq: 900, sweep: 180 })
+  },
+  // 召喚豬衝刺撞擊：悶重低音（撞到東西時）
+  stomp(v = 1) {
+    const g = Math.min(0.55, 0.25 + v * 0.02)
+    blip({ freq: 90, type: 'sine', dur: 0.16, gain: g, sweep: 38 })
+    noise({ dur: 0.1, gain: g * 0.5, type: 'lowpass', freq: 300 })
+  },
   // 動物死亡：播放 die.mp3（尚未載入完成則退回合成 pop）
   die() {
     if (!ctx) return
