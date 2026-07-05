@@ -34,28 +34,36 @@
       width: 22px; height: 22px; pointer-events: none; z-index: 4;
     }
     #crosshair::before, #crosshair::after {
-      content: ''; position: absolute; background: rgba(255,255,255,.9);
-      box-shadow: 0 0 2px rgba(0,0,0,.6);
+      content: ''; position: absolute; background: #fff;
+      box-shadow: 0 0 0 1px rgba(0,0,0,.85), 0 0 4px rgba(0,0,0,.6);
     }
-    #crosshair::before { left: 50%; top: 0; width: 2px; height: 100%; transform: translateX(-50%); }
-    #crosshair::after { top: 50%; left: 0; height: 2px; width: 100%; transform: translateY(-50%); }
+    #crosshair::before { left: 50%; top: 0; width: 3px; height: 100%; transform: translateX(-50%); }
+    #crosshair::after { top: 50%; left: 0; height: 3px; width: 100%; transform: translateY(-50%); }
 
     /* HUD */
     #hud {
-      position: fixed; top: 0; left: 0; right: 0; padding: 14px 20px;
-      display: flex; align-items: center; gap: 28px; pointer-events: none;
-      color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.4); z-index: 5;
+      position: fixed; top: 0; left: 0; right: 0; padding: 12px 16px;
+      display: flex; align-items: center; gap: 22px; pointer-events: none;
+      color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,.6), 0 0 3px rgba(0,0,0,.4); z-index: 5;
+      background: linear-gradient(rgba(0,0,0,.32), rgba(0,0,0,0));
     }
-    .stat { display: flex; flex-direction: column; gap: 2px; }
+    .stat { display: flex; flex-direction: column; gap: 2px; white-space: nowrap; }
     .stat .k { font-size: 11px; letter-spacing: 1px; opacity: .85; }
-    .stat .v { font-size: 22px; font-weight: 700; line-height: 1; }
+    .stat .v { font-size: 22px; font-weight: 800; line-height: 1; }
     #ammo, #pigs { font-size: 18px; letter-spacing: 2px; }
+    @media (max-width: 560px) {
+      #hud { gap: 12px; padding: 9px 12px; }
+      .stat .k { font-size: 10px; }
+      .stat .v { font-size: 17px; }
+      #ammo, #pigs { font-size: 15px; letter-spacing: 1px; }
+    }
 
     /* 蓄力條 */
     #power {
       position: fixed; left: 50%; bottom: 48px; transform: translateX(-50%);
-      width: 220px; height: 12px; border-radius: 999px; z-index: 5;
-      background: rgba(0,0,0,.35); overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.3);
+      width: 230px; height: 14px; border-radius: 999px; z-index: 5;
+      background: rgba(0,0,0,.5); border: 2px solid rgba(255,255,255,.55);
+      overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.45);
     }
     #power-fill { height: 100%; width: 0%; border-radius: 999px;
       background: linear-gradient(90deg, #6ee787, #ffd24a, #ff5544); transition: width .02s linear; }
@@ -131,6 +139,19 @@
     button.ghost { background: #e9e9ee; color: #444; box-shadow: none; }
     button.ghost:hover { background: #dcdce3; }
     .btnrow { display: flex; gap: 12px; justify-content: center; }
+    /* 暫停 / 結算視窗：羊皮紙木框風（與首頁一致） */
+    #pause .box, #msg .box { background: #fbf1d6; color: #6b4a2a; border: 5px solid #d3934e;
+      border-radius: 24px; box-shadow: 0 0 0 4px #a86a34, 0 22px 50px rgba(0,0,0,.45); }
+    #pause .box h2, #msg .box h2 { color: #7a4a1e; font-size: 30px; }
+    #pause #pause-text { color: #8a6a44; font-weight: 700; }
+    #pause .btnrow, #msg .btnrow { margin-top: 8px; }
+    #pause .btnrow button, #msg .btnrow button { border-radius: 16px; padding: 13px 24px; font-weight: 900;
+      box-shadow: 0 4px 0 rgba(0,0,0,.18); transition: transform .08s; }
+    #pause .btnrow button:active, #msg .btnrow button:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(0,0,0,.18); }
+    #resume-btn, #msg #next { background: linear-gradient(#ff9a3d, #ff6a00); }
+    #resume-btn:hover, #msg #next:hover { background: linear-gradient(#ffa74e, #ff7a12); }
+    #pause .btnrow .ghost, #msg .btnrow .ghost { background: #ecdcb4; color: #7a5a34; box-shadow: 0 4px 0 rgba(0,0,0,.12); }
+    #pause .btnrow .ghost:hover, #msg .btnrow .ghost:hover { background: #f6ead0; }
     /* 星星 */
     #stars { display: flex; gap: 10px; justify-content: center; margin: 6px 0 14px; }
     #stars .star {
@@ -143,35 +164,57 @@
       background: #6db8e8; color: #fff; font-size: 16px; z-index: 20; }
 
     /* 登入頁（輸入名字才能開始） */
-    #landing { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-      background: rgba(0,0,0,.5); z-index: 12; }
+    /* ===== 首頁（農場木框風，使用 asset 素材）===== */
+    #landing { position: fixed; inset: 0; z-index: 12; display: flex; align-items: center; justify-content: center;
+      overflow: hidden; background: #7cc7f0 url(assets/ui/bg.webp) center/cover no-repeat; }
     #landing.hidden { display: none; }
-    .landing-card { background: #fff; color: #222; border-radius: 20px; padding: 36px 40px; text-align: center;
-      box-shadow: 0 20px 60px rgba(0,0,0,.4); max-width: 420px; width: 90%; }
-    .landing-card h1 { font-size: 30px; margin-bottom: 4px; }
-    .landing-sub { font-size: 13px; color: #666; margin-bottom: 22px; }
-    #name-input { width: 100%; font-size: 18px; font-weight: 700; text-align: center; padding: 12px 14px;
-      border: 2px solid #e6e6ee; border-radius: 12px; outline: none; margin-bottom: 14px; color: #222; }
-    #name-input:focus { border-color: #e0533b; }
-    #start-btn { width: 100%; font-size: 18px; padding: 14px; }
-    #start-btn:disabled, #endless-btn:disabled { background: #cfcfd6; box-shadow: none; cursor: not-allowed; }
-    #endless-btn { width: 100%; font-size: 16px; padding: 12px; margin-top: 10px; background: #b23; }
-    #endless-btn:hover:not(:disabled) { background: #9c1f2b; }
-    #name-hint { font-size: 12px; color: #e0533b; font-weight: 700; margin: 8px 0 2px; }
-    .landing-card .tip { font-size: 11px; color: #999; margin-top: 16px; }
-    /* 登入頁：線上人數、功能鈕、FB、統計 */
-    #online-badge { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 14px;
-      font-size: 13px; font-weight: 800; color: #2e9e5b; background: #eafaf0; border-radius: 999px; padding: 5px 12px; }
+    /* 兩側裝飾（彈弓 / 箱子）；窄螢幕隱藏 */
+    .land-deco { position: absolute; bottom: 0; z-index: 1; pointer-events: none;
+      filter: drop-shadow(0 6px 10px rgba(0,0,0,.25)); }
+    .land-slingshot { left: 1vw; width: min(24vw, 340px); }
+    .land-crates { right: -1vw; width: min(28vw, 430px); }
+    @media (max-width: 860px) { .land-deco { display: none; } }
+    /* 中央木框面板（panel.webp 拉伸當背景） */
+    .land-panel { position: relative; z-index: 2; width: min(90vw, 430px); max-height: 96vh; overflow: visible;
+      background: url(assets/ui/panel.webp) center/100% 100% no-repeat;
+      padding: 34px 42px 30px; display: flex; flex-direction: column; align-items: stretch; gap: 9px;
+      color: #6b4a2a; text-align: center; }
+    .land-title { display: block; width: 96%; max-width: 400px; margin: -78px auto 2px; pointer-events: none;
+      filter: drop-shadow(0 5px 8px rgba(0,0,0,.25)); }
+    #online-badge { align-self: center; display: inline-flex; align-items: center; gap: 6px;
+      font-size: 13px; font-weight: 800; color: #2e9e5b; background: rgba(232,250,238,.9); border-radius: 999px; padding: 4px 12px; }
     #online-badge .dot { width: 8px; height: 8px; border-radius: 50%; background: #34c759;
       box-shadow: 0 0 0 0 rgba(52,199,89,.6); animation: pulse 1.6s infinite; }
     @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(52,199,89,.5); } 70% { box-shadow: 0 0 0 7px rgba(52,199,89,0); } 100% { box-shadow: 0 0 0 0 rgba(52,199,89,0); } }
-    .landing-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
-    .landing-btns .ghost { font-size: 14px; padding: 9px 14px; }
-    #fb-link { display: block; margin-top: 12px; padding: 11px; border-radius: 999px; font-weight: 800; font-size: 15px;
-      color: #fff; background: #1877f2; text-decoration: none; box-shadow: 0 6px 16px rgba(24,119,242,.35); }
+    .land-name-label { font-size: 12px; font-weight: 800; color: #9a7b52; letter-spacing: 1px; margin-top: 2px; }
+    #name-input { width: 100%; font-size: 20px; font-weight: 800; text-align: center; padding: 9px 14px;
+      border: 2px solid #d9c39a; border-radius: 12px; outline: none; color: #5a3d20; background: rgba(255,255,255,.6); }
+    #name-input:focus { border-color: #e0771a; }
+    /* 大按鈕（開始 / 死鬥） */
+    #start-btn, #endless-btn { width: 100%; border: none; border-radius: 16px; color: #fff; cursor: pointer;
+      font-weight: 900; padding: 12px; line-height: 1.15; box-shadow: 0 5px 0 rgba(0,0,0,.18), 0 8px 14px rgba(0,0,0,.2);
+      display: flex; flex-direction: column; align-items: center; gap: 1px; transition: transform .1s, filter .1s; }
+    #start-btn { background: linear-gradient(#ff9a3d, #ff6a00); }
+    #endless-btn { background: linear-gradient(#e85466, #c11f2b); }
+    #start-btn span.big, #endless-btn span.big { font-size: 21px; letter-spacing: 1px; }
+    #start-btn small, #endless-btn small { font-size: 12px; font-weight: 700; opacity: .92; }
+    #start-btn:hover:not(:disabled), #endless-btn:hover:not(:disabled) { filter: brightness(1.05); }
+    #start-btn:active:not(:disabled), #endless-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,.18); }
+    #start-btn:disabled, #endless-btn:disabled { background: #c9bfa6; box-shadow: none; cursor: not-allowed; opacity: .7; }
+    #name-hint { font-size: 12px; color: #d24a2a; font-weight: 800; margin: -2px 0; min-height: 14px; }
+    /* 小功能鈕（圖示上、字在下） */
+    .landing-btns { display: flex; gap: 8px; justify-content: center; }
+    .landing-btns .ghost { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+      font-size: 11px; font-weight: 800; color: #7a5a34; background: rgba(255,255,255,.55); border: 2px solid #d9c39a;
+      border-radius: 12px; padding: 7px 2px; cursor: pointer; box-shadow: none; }
+    .landing-btns .ghost .ico { font-size: 20px; line-height: 1; }
+    .landing-btns .ghost:hover { background: #fff7e6; }
+    .landing-stat { font-size: 12px; font-weight: 700; color: #7a5a34; margin-top: 2px; line-height: 1.5; }
+    .landing-stat b { color: #d2691e; font-weight: 900; }
+    #fb-link { align-self: center; display: inline-block; width: auto; padding: 5px 16px; border-radius: 999px;
+      font-weight: 800; font-size: 12px; color: #fff; background: #1877f2; text-decoration: none; box-shadow: 0 3px 0 rgba(0,0,0,.15); }
     #fb-link:hover { background: #3b8bf5; }
-    .landing-stat { font-size: 13px; color: #666; margin-top: 14px; }
-    .landing-stat b { color: #e0533b; font-weight: 800; }
+    .land-panel .tip { font-size: 10px; color: #a98f6a; margin-top: 2px; }
 
     /* 彈窗（排行榜 / 留言板 / 上線人數 共用） */
     .modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -202,6 +245,7 @@
     #msg-rank { font-size: 16px; font-weight: 800; color: #444; margin: 4px 0 10px; }
     #msg-rank:empty { display: none; }
     #msg-rank b { color: #e0533b; font-size: 22px; }
+    #msg-rank .rank-src { font-size: 13px; font-weight: 800; color: #8a6a44; }
     #msg-lb { text-align: left; margin: 0 auto 16px; max-width: 320px; }
     #msg-lb:empty { display: none; }
     #msg-lb .lb-row { font-size: 14px; padding: 5px 6px; }
@@ -262,7 +306,7 @@
 
   <div id="hud">
     <div class="stat"><span class="k">關卡</span><span class="v" id="level"></span></div>
-    <div class="stat"><span class="k">SCORE</span><span class="v" id="score">0</span></div>
+    <div class="stat"><span class="k">分數</span><span class="v" id="score">0</span></div>
     <div class="stat"><span class="k">彈藥</span><span class="v" id="ammo"></span></div>
     <div class="stat"><span class="k">剩餘動物</span><span class="v" id="pigs"></span></div>
   </div>
@@ -328,24 +372,26 @@
 
   <!-- 登入頁：輸入名字才能開始 -->
   <div id="landing" class="hidden">
-    <div class="landing-card">
-      <h1>🐷 憤怒豬</h1>
-      <p class="landing-sub">Angry Pig · 第一人稱 3D 投擲破壞</p>
+    <img class="land-deco land-slingshot" src="assets/ui/slingshot.webp" alt="" />
+    <img class="land-deco land-crates" src="assets/ui/crates.webp" alt="" />
+    <div class="land-panel">
+      <img class="land-title" src="assets/ui/title.webp" alt="憤怒豬" />
       <div id="online-badge"><span class="dot"></span> 線上 <b id="online-n">–</b> 人</div>
+      <div class="land-name-label">玩家名稱</div>
       <input id="name-input" maxlength="12" placeholder="輸入你的名字" autocomplete="off" />
-      <button id="start-btn" disabled>▶ 開始遊戲（選關卡）</button>
-      <button id="endless-btn" disabled>☠️ 死鬥模式（無限波）</button>
+      <button id="start-btn" disabled><span class="big">▶ 開始遊戲</span><small>選關卡挑戰</small></button>
+      <button id="endless-btn" disabled><span class="big">☠️ 死鬥模式</span><small>無限波生存</small></button>
       <p id="name-hint">請先輸入名字才能開始</p>
       <div class="landing-btns">
-        <button id="shop-btn-landing" class="ghost">🛒 商店</button>
-        <button id="lb-btn-landing" class="ghost">🏆 排行榜</button>
-        <button id="msg-btn-landing" class="ghost">💬 留言板</button>
-        <button id="online-btn-landing" class="ghost">📈 上線人數</button>
-        <button id="music-toggle" class="ghost">🔊 音樂：開</button>
+        <button id="shop-btn-landing" class="ghost"><span class="ico">🛒</span>商店</button>
+        <button id="lb-btn-landing" class="ghost"><span class="ico">🏆</span>排行榜</button>
+        <button id="msg-btn-landing" class="ghost"><span class="ico">💬</span>留言板</button>
+        <button id="online-btn-landing" class="ghost"><span class="ico">📈</span>上線</button>
+        <button id="music-toggle" class="ghost"><span class="ico">🔊</span>音樂</button>
       </div>
+      <div class="landing-stat">全服累計　🎮 <b id="total-plays">–</b> 場　🐾 <b id="total-kills">–</b> 隻　⏱ <b id="total-time">–</b></div>
       <a id="fb-link" href="https://www.facebook.com/people/Book-Ai/61584339789020/" target="_blank" rel="noopener">👍 追蹤 Book Ai 粉絲團</a>
-      <p class="landing-stat">🎮 累計遊玩 <b id="total-plays">–</b> 場</p>
-      <p class="tip">名字存在這台裝置，並記錄你的最高分 · 選關會鎖定滑鼠</p>
+      <p class="tip">名字存在這台裝置，並記錄你的最高分</p>
     </div>
   </div>
 

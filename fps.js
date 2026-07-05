@@ -263,30 +263,30 @@ world.addBody(groundBody)
 // ---- 資產 ----
 const loader = new GLTFLoader()
 const ASSETS = {
-  crate: 'assets/Crate.gltf',
-  hardbox: 'assets/Crate.gltf',
-  summonpig: 'assets/Pig.gltf',   // 死鬥召喚道具：巨大豬（重用 Pig 模型）
-  bombprop: 'assets/Prop_Bomb.gltf',   // 炸彈外觀
-  cardboard: 'assets/CardboardBoxes_1.gltf',
-  barrel: 'assets/ExplodingBarrel.gltf',
-  pig: 'assets/Pig.gltf',
-  sheep: 'assets/Sheep.gltf',
-  chicken: 'assets/Chicken.gltf',
-  cat: 'assets/Cat.gltf',
-  dog: 'assets/Dog.gltf',
-  raccoon: 'assets/Raccoon.gltf',
-  wolf: 'assets/Wolf.gltf',
-  horse: 'assets/Horse.gltf',
-  chick: 'assets/Chick.gltf',
-  plank: 'assets/WoodPlanks.gltf',
-  brick: 'assets/BrickWall_2.gltf',
-  container: 'assets/Container_Small.gltf',
-  sack: 'assets/SackTrench.gltf',
-  gastank: 'assets/GasTank.gltf',
+  crate: 'assets/Crate.glb',
+  hardbox: 'assets/Crate.glb',
+  summonpig: 'assets/Pig.glb',   // 死鬥召喚道具：巨大豬（重用 Pig 模型）
+  bombprop: 'assets/Prop_Bomb.glb',   // 炸彈外觀
+  cardboard: 'assets/CardboardBoxes_1.glb',
+  barrel: 'assets/ExplodingBarrel.glb',
+  pig: 'assets/Pig.glb',
+  sheep: 'assets/Sheep.glb',
+  chicken: 'assets/Chicken.glb',
+  cat: 'assets/Cat.glb',
+  dog: 'assets/Dog.glb',
+  raccoon: 'assets/Raccoon.glb',
+  wolf: 'assets/Wolf.glb',
+  horse: 'assets/Horse.glb',
+  chick: 'assets/Chick.glb',
+  plank: 'assets/WoodPlanks.glb',
+  brick: 'assets/BrickWall_2.glb',
+  container: 'assets/Container_Small.glb',
+  sack: 'assets/SackTrench.glb',
+  gastank: 'assets/GasTank.glb',
   // 純裝飾（不參與物理，用來佈置場地邊界與四周）
-  fence: 'assets/MetalFence.gltf',
-  barrier: 'assets/Barrier_Single.gltf',
-  cone: 'assets/TrafficCone.gltf',
+  fence: 'assets/MetalFence.glb',
+  barrier: 'assets/Barrier_Single.glb',
+  cone: 'assets/TrafficCone.glb',
 }
 const protos = {}
 const animClips = {}   // 各動物的動畫片段
@@ -463,7 +463,7 @@ function killAnimal(e) {
   const height = Math.max(0, (e.maxY || 0) - (e.startY || 0))
   const dist = Math.hypot(e.body.position.x - (e.spawnX || 0), e.body.position.z - (e.spawnZ || 0))
   const bonus = bonusFor(height, dist)
-  game.score += bonus; game.pigs--
+  game.score += bonus; game.pigs--; pendingKills++   // 全服消滅數 +1
   sfx.die()
   removeTag(e); removeTrail(e)   // 收掉跟隨計數器與拖尾
   // 死亡結算：金色大字定格上飄
@@ -829,7 +829,7 @@ function refreshHUD() {
   const a = Math.max(0, game.ammo)
   hud.ammo.textContent = a > 8 ? '🔴×' + a : '🔴'.repeat(a)
   hud.pigs.textContent = '🐾 ' + Math.max(0, game.pigs)
-  hud.level.textContent = game.endless ? `☠️ 死鬥 第 ${game.wave} 波` : `關卡 ${currentLevel + 1}／${LEVELS.length}`
+  hud.level.textContent = game.endless ? `☠️ 第 ${game.wave} 波` : `${currentLevel + 1}／${LEVELS.length}`
 }
 // 空中 BONUS 倍率條：有動物在飛就顯示當前最佳表現
 function updateAirBonusHUD(bonus, height) {
@@ -1279,7 +1279,7 @@ function startLevel(idx) {
 let musicEnabled = localStorage.getItem('fps3d_music') !== 'off'
 function updateMusicBtn() {
   const b = document.getElementById('music-toggle')
-  if (b) b.textContent = musicEnabled ? '🔊 音樂：開' : '🔇 音樂：關'
+  if (b) b.innerHTML = `<span class="ico">${musicEnabled ? '🔊' : '🔇'}</span>${musicEnabled ? '音樂開' : '音樂關'}`
 }
 function toggleMusic() {
   musicEnabled = !musicEnabled
@@ -1381,8 +1381,13 @@ async function renderLeaderboard(levelName) {
 // 結算畫面：送出分數 → 顯示本關名次 + 本關前幾名（highlight 自己）
 async function showLevelRank(levelName, score) {
   hud.msgRank.textContent = '結算名次中…'; hud.msgLb.innerHTML = ''
-  const info = (await submitScore(score, levelName)) || localRank(score, levelName)
-  hud.msgRank.innerHTML = `本關排名 <b>第 ${info.rank}</b> / ${info.total} 名${info.local ? '　📱本機' : ''}`
+  if (score > 0) {
+    const info = (await submitScore(score, levelName)) || localRank(score, levelName)
+    const src = info.local ? '📱 本機' : '🌐 全球'
+    hud.msgRank.innerHTML = `本關排名 <b>第 ${info.rank}</b> / ${info.total} 名　<span class="rank-src">${src}</span>`
+  } else {
+    hud.msgRank.innerHTML = '<span class="rank-src">本場 0 分，未計入排行</span>'
+  }
   let rows = localTop(levelName, 5), remote = false
   try {
     const res = await fetch(`/api/leaderboard?limit=5&level=${encodeURIComponent(levelName)}`)
@@ -1402,10 +1407,32 @@ async function postHeartbeat() {
 async function refreshOnline() {
   try { const r = await fetch('/api/online'); if (r.ok) { const j = await r.json(); const el = document.getElementById('online-n'); if (el && j.online != null) el.textContent = j.online } } catch {}
 }
+const fmtDuration = (sec) => {
+  sec = Math.max(0, Math.round(sec))
+  if (sec < 3600) return Math.round(sec / 60) + ' 分'
+  if (sec < 86400) return (sec / 3600).toFixed(1) + ' 小時'
+  return (sec / 86400).toFixed(1) + ' 天'
+}
 async function refreshTotals() {
-  try { const r = await fetch('/api/totals'); if (r.ok) { const j = await r.json(); const el = document.getElementById('total-plays'); if (el && j.plays != null) el.textContent = Number(j.plays).toLocaleString() } } catch {}
+  try {
+    const r = await fetch('/api/totals'); if (!r.ok) return
+    const j = await r.json()
+    const set = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.textContent = v }
+    set('total-plays', Number(j.plays || 0).toLocaleString())
+    set('total-kills', Number(j.kills || 0).toLocaleString())
+    set('total-time', fmtDuration(j.seconds || 0))
+  } catch {}
 }
 function bumpPlays() { fetch('/api/totals', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ runs: 1 }) }).catch(() => {}) }
+// 全服累計：消滅動物數 + 遊玩秒數 —— 遊戲中累積，定期/離開時上傳（成功才清零）
+let pendingKills = 0, pendingSeconds = 0
+function flushTotals() {
+  const k = pendingKills, s = Math.floor(pendingSeconds)
+  if (k <= 0 && s <= 0) return
+  fetch('/api/totals', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kills: k, seconds: s }),
+  }).then((r) => { if (r.ok) { pendingKills -= k; pendingSeconds -= s } }).catch(() => {})
+}
 
 const timeAgo = (at) => {
   const s = Math.max(0, (Date.now() - at) / 1000)
@@ -1499,7 +1526,7 @@ function showLanding() {
   updateMusicBtn()                    // 音樂鈕現在在首頁
   landing.classList.remove('hidden')
   nameInput.focus()
-  refreshOnline(); refreshTotals()   // 更新線上人數與累計場次
+  flushTotals(); refreshOnline(); setTimeout(refreshTotals, 400)   // 先上傳本場累積，再更新全服統計
 }
 function beginFromLanding() {
   if (nameInput.value.trim().length === 0) return
@@ -1559,6 +1586,8 @@ for (const m of [msgModal, onlineModal, shopModal]) m.addEventListener('click', 
 // 心跳 + 線上人數：載入即上報，之後每 60 秒
 postHeartbeat(); refreshOnline(); refreshTotals()
 setInterval(() => { postHeartbeat(); refreshOnline() }, 60000)
+setInterval(flushTotals, 30000)   // 每 30 秒上傳一次累積的消滅數/遊玩時間
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushTotals() })
 
 document.getElementById('retry').addEventListener('click', () => (game && game.endless ? startEndless() : startLevel(currentLevel)))
 document.getElementById('next').addEventListener('click', () => startLevel(currentLevel + 1))
@@ -1719,6 +1748,7 @@ function loop() {
         hud.power.style.width = (power * 100) + '%'
         showTrajectory(power)
       }
+      pendingSeconds += dt   // 全服累計遊玩時間
       // 起始緩衝：等堆疊穩定後才開始判定豬落地（避免開場晃動誤殺）
       game.startT += dt
       if (!game.armed && game.startT > 1.5) game.armed = true
@@ -1863,7 +1893,10 @@ function resize() {
   // 用實際可視尺寸（iOS 上 innerHeight 會排除瀏覽器工具列），避免畫布比可視區高導致瞄準中心偏移
   const w = window.innerWidth, h = window.innerHeight
   renderer.setSize(w, h)   // updateStyle=true：畫布 CSS 尺寸 = 可視區
-  camera.aspect = w / h; camera.updateProjectionMatrix()
+  camera.aspect = w / h
+  // 直式（手機）時降低 FOV 自動拉近，減少上下大量留白、堡壘更大更好瞄；橫式維持 70
+  camera.fov = camera.aspect >= 1 ? 70 : Math.max(60, Math.min(70, 52 + camera.aspect * 22))
+  camera.updateProjectionMatrix()
   // 準星對齊畫布正中心（= 相機瞄準點），不靠 CSS 50% 以免 iOS 視窗高度差造成偏移
   const cx = document.getElementById('crosshair')
   cx.style.left = (w / 2) + 'px'; cx.style.top = (h / 2) + 'px'

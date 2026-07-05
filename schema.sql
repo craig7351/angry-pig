@@ -42,9 +42,14 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 CREATE INDEX IF NOT EXISTS idx_messages_id ON messages (id DESC);
 
--- 全服累計統計（單列 id=1）：遊玩場次
+-- 全服累計統計（單列 id=1）：遊玩場次 / 消滅動物數 / 遊玩秒數
 CREATE TABLE IF NOT EXISTS stats (
   id INTEGER PRIMARY KEY,
-  plays INTEGER NOT NULL DEFAULT 0
+  plays INTEGER NOT NULL DEFAULT 0,
+  kills INTEGER NOT NULL DEFAULT 0,
+  seconds INTEGER NOT NULL DEFAULT 0
 );
 INSERT OR IGNORE INTO stats (id) VALUES (1);
+-- 既有資料庫補欄位（新欄位；已存在會報錯可忽略）：
+-- ALTER TABLE stats ADD COLUMN kills INTEGER NOT NULL DEFAULT 0;
+-- ALTER TABLE stats ADD COLUMN seconds INTEGER NOT NULL DEFAULT 0;

@@ -3,3 +3,6 @@ dist/
 *.log
 .DS_Store
 .wrangler/
+
+# 首頁素材原始檔（散落根目錄的 AI 生圖附件，不需入庫）
+/*.png
