@@ -231,6 +231,29 @@
     .on-now b { color: #2e9e5b; font-size: 20px; }
     #online-body svg { width: 100%; height: auto; }
     .on-empty { text-align: center; color: #999; padding: 20px; font-size: 14px; }
+
+    /* 特殊彈藥槽（死鬥）：右側直排 */
+    #specials { position: fixed; right: 12px; top: 50%; transform: translateY(-50%); z-index: 6;
+      display: flex; flex-direction: column; gap: 10px; }
+    #specials.hidden { display: none; }
+    .sp-slot { position: relative; width: 52px; height: 52px; border-radius: 12px; padding: 0;
+      display: flex; align-items: center; justify-content: center; color: #fff; box-shadow: none;
+      background: rgba(0,0,0,.42); border: 2px solid rgba(255,255,255,.4); }
+    .sp-slot .sp-emoji { font-size: 26px; line-height: 1; }
+    .sp-slot .sp-key { position: absolute; top: -7px; left: -7px; width: 18px; height: 18px; border-radius: 50%;
+      background: #333; color: #fff; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+    .sp-slot.sel { border-color: #ffd24a; background: rgba(224,83,59,.55); box-shadow: 0 0 0 3px rgba(255,210,74,.5); }
+    .sp-slot.used { opacity: .35; }
+
+    /* 商店 */
+    #shop-list { padding: 8px 16px 18px; }
+    .shop-item { display: flex; align-items: center; gap: 12px; padding: 11px 6px; border-bottom: 1px solid #f2f2f5; }
+    .shop-emoji { font-size: 30px; }
+    .shop-info { flex: 1; text-align: left; }
+    .shop-name { font-weight: 800; color: #333; }
+    .shop-desc { font-size: 12px; color: #888; }
+    .shop-toggle { padding: 7px 14px; font-size: 13px; background: #e9e9ee; color: #444; box-shadow: none; }
+    .shop-toggle.on { background: #e0533b; color: #fff; }
   </style>
 </head>
 <body>
@@ -244,6 +267,9 @@
     <div class="stat"><span class="k">剩餘動物</span><span class="v" id="pigs"></span></div>
   </div>
   <div id="power"><div id="power-fill"></div></div>
+
+  <!-- 特殊彈藥槽（死鬥模式）：桌機按 1/2/3 選、手機點選 -->
+  <div id="specials" class="hidden"></div>
 
   <!-- 手機虛擬搖桿（控準星）+ 發射鈕 -->
   <div id="touch-controls">
@@ -311,6 +337,7 @@
       <button id="endless-btn" disabled>☠️ 死鬥模式（無限波）</button>
       <p id="name-hint">請先輸入名字才能開始</p>
       <div class="landing-btns">
+        <button id="shop-btn-landing" class="ghost">🛒 商店</button>
         <button id="lb-btn-landing" class="ghost">🏆 排行榜</button>
         <button id="msg-btn-landing" class="ghost">💬 留言板</button>
         <button id="online-btn-landing" class="ghost">📈 上線人數</button>
@@ -319,6 +346,15 @@
       <a id="fb-link" href="https://www.facebook.com/people/Book-Ai/61584339789020/" target="_blank" rel="noopener">👍 追蹤 Book Ai 粉絲團</a>
       <p class="landing-stat">🎮 累計遊玩 <b id="total-plays">–</b> 場</p>
       <p class="tip">名字存在這台裝置，並記錄你的最高分 · 選關會鎖定滑鼠</p>
+    </div>
+  </div>
+
+  <!-- 商店（裝備特殊彈藥）彈窗 -->
+  <div id="shop-modal" class="modal hidden">
+    <div class="lb-card">
+      <div class="lb-head"><span>🛒 商店 · 特殊彈藥</span><button class="mclose" data-close="shop-modal">✕</button></div>
+      <div class="lb-src" style="padding:10px 16px 0">免費裝備 · 死鬥模式每場各帶一顆（最多 3 種）</div>
+      <div id="shop-list"></div>
     </div>
   </div>
 

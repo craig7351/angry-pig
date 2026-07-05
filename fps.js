@@ -261,6 +261,8 @@ const loader = new GLTFLoader()
 const ASSETS = {
   crate: 'assets/Crate.gltf',
   hardbox: 'assets/Crate.gltf',
+  summonpig: 'assets/Pig.gltf',   // 死鬥召喚道具：巨大豬（重用 Pig 模型）
+  bombprop: 'assets/Prop_Bomb.gltf',   // 炸彈外觀
   cardboard: 'assets/CardboardBoxes_1.gltf',
   barrel: 'assets/ExplodingBarrel.gltf',
   pig: 'assets/Pig.gltf',
@@ -288,7 +290,7 @@ async function loadAll() {
   await Promise.all(Object.entries(ASSETS).map(async ([k, url]) => {
     const gltf = await loader.loadAsync(url)
     protos[k] = gltf.scene
-    if (isAnimal(k)) animClips[k] = gltf.animations || []
+    if (isAnimal(k) || k === 'summonpig') animClips[k] = gltf.animations || []
     gltf.scene.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true } })
   }))
 }
@@ -320,6 +322,7 @@ const TYPE = {
   container: { scale: 1.05, mass: 6.0, mat: matBox },                            // 貨櫃，重底座
   sack:      { scale: 0.90, mass: 3.5, mat: matBox },                            // 沙包掩體
   gastank:   { scale: 1.25, mass: 1.2, mat: matBox, explosive: 5.5 },            // 瓦斯桶，大爆炸
+  summonpig: { scale: 3.2, mass: 30, mat: matBox, skinned: true },               // 死鬥召喚：巨大豬（非目標）
 }
 
 const isAnimal = (type) => !!(TYPE[type] && TYPE[type].animal)
@@ -373,7 +376,7 @@ function measureAnimatedBounds(holder, clip) {
 function makeVisual(type) {
   const cfg = TYPE[type]
   const proto = protos[type]
-  const inst = isAnimal(type) ? skeletonClone(proto) : proto.clone(true)
+  const inst = (isAnimal(type) || cfg.skinned) ? skeletonClone(proto) : proto.clone(true)
   // 色調（如硬箱）：複製材質後乘上 tint，讓外觀與一般木箱區別
   if (cfg.tint) inst.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.color = new THREE.Color(cfg.tint) } })
   const raw = measure(proto)
@@ -605,6 +608,158 @@ function throwBall(power) {
   })
   balls.push(ent)
   entities.push(ent)
+}
+
+// ============================================================
+//  特殊彈藥（僅死鬥模式）：炸彈 / 一分多 / 召喚豬
+// ============================================================
+const SPECIALS = [
+  { key: 'bomb', emoji: '💣', name: '炸彈', desc: '命中即爆炸，掀翻周圍一整片' },
+  { key: 'split', emoji: '🎯', name: '一分多', desc: '飛行中分裂成多顆霰彈掃射' },
+  { key: 'summon', emoji: '🐖', name: '召喚豬', desc: '召喚巨大豬往準星衝，撞倒一切' },
+]
+const SPECIAL_UNLIMITED = true   // 測試用：特殊彈藥不限次數（正式版改回 false 恢復「每場各一顆」）
+const LOADOUT_KEY = 'angrypig:loadout'
+function loadLoadout() { try { const o = JSON.parse(localStorage.getItem(LOADOUT_KEY)); return o && typeof o === 'object' ? o : {} } catch { return {} } }
+const loadout = { bomb: true, split: true, summon: true, ...loadLoadout() }   // 預設全裝備
+function saveLoadout() { try { localStorage.setItem(LOADOUT_KEY, JSON.stringify(loadout)) } catch {} }
+
+function aimStart(fwd = 1.4) {
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir)
+  return { dir, start: camera.position.clone().addScaledVector(dir, fwd) }
+}
+function makeBallMesh(r, color) {
+  const group = new THREE.Group()
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 14),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.35, emissive: color, emissiveIntensity: 0.15 }))
+  m.castShadow = true; group.add(m); scene.add(group)
+  return group
+}
+function addProjectile(group, body, type, extra = {}) {
+  world.addBody(body)
+  const ent = { body, group, type, hp: 1e9, born: 0, ...extra }
+  body._ent = ent
+  balls.push(ent); entities.push(ent)
+  return ent
+}
+// 炸彈：命中即爆（外觀用 Prop_Bomb 模型，載入失敗則退回深色球）
+function makeBombMesh(r) {
+  const proto = protos.bombprop
+  if (!proto) return makeBallMesh(r, 0x222228)
+  const inst = proto.clone(true)
+  const m = measure(proto)
+  const scale = (r * 2.4) / (m.size.y || 1)
+  inst.scale.setScalar(scale)
+  inst.position.copy(m.center).multiplyScalar(-scale)   // 置中到群組原點
+  inst.traverse((o) => { if (o.isMesh) o.castShadow = true })
+  const group = new THREE.Group(); group.add(inst); scene.add(group)
+  return group
+}
+function throwBomb(power) {
+  const { dir, start } = aimStart()
+  const r = 0.42
+  const body = new CANNON.Body({ mass: 4, material: matBall, shape: new CANNON.Sphere(r) })
+  body.position.set(start.x, start.y, start.z)
+  const s = SPEED_MIN + (SPEED_MAX - SPEED_MIN) * power
+  body.velocity.set(dir.x * s, dir.y * s, dir.z * s)
+  const ent = addProjectile(makeBombMesh(r), body, 'bomb')
+  body.addEventListener('collide', (e) => {
+    if (ent.boom) return
+    const v = Math.abs(e.contact.getImpactVelocityAlongNormal())
+    if (v > 2) { ent.boom = true; explode(body.position, 4.8) }
+  })
+}
+// 一分多：載體球飛一小段後分裂成霰彈
+function throwSplit(power) {
+  const { dir, start } = aimStart()
+  const r = 0.34
+  const body = new CANNON.Body({ mass: 3, material: matBall, shape: new CANNON.Sphere(r) })
+  body.position.set(start.x, start.y, start.z)
+  const s = SPEED_MIN + (SPEED_MAX - SPEED_MIN) * power
+  body.velocity.set(dir.x * s, dir.y * s, dir.z * s)
+  addProjectile(makeBallMesh(r, 0x36b0ff), body, 'split')
+}
+function spawnPellet(pos, vel) {
+  const r = 0.26
+  const body = new CANNON.Body({ mass: 1.6, material: matBall, shape: new CANNON.Sphere(r) })
+  body.position.set(pos.x, pos.y, pos.z); body.velocity.set(vel.x, vel.y, vel.z)
+  const ent = addProjectile(makeBallMesh(r, 0x8fd4ff), body, 'ball')
+  body.addEventListener('collide', (e) => { const v = Math.abs(e.contact.getImpactVelocityAlongNormal()); if (v > 2.5) playThud(v) })
+  return ent
+}
+function doSplit(ent) {
+  const p = ent.body.position, v = ent.body.velocity
+  const base = new THREE.Vector3(v.x, v.y, v.z); const speed = base.length() || 22; base.normalize()
+  const ref = Math.abs(base.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0)
+  const right = new THREE.Vector3().crossVectors(base, ref).normalize()
+  const up = new THREE.Vector3().crossVectors(right, base).normalize()
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2, spread = 0.3
+    const d = base.clone().addScaledVector(right, Math.cos(a) * spread).addScaledVector(up, Math.sin(a) * spread).normalize()
+    spawnPellet(p, d.multiplyScalar(speed))
+  }
+}
+// 召喚豬：巨大豬往準星水平方向衝刺，靠大質量撞倒沿路一切
+function throwSummon() {
+  const dir = new THREE.Vector3(); camera.getWorldDirection(dir)
+  const cd = new THREE.Vector3(dir.x, 0, dir.z); if (cd.lengthSq() < 1e-4) cd.set(0, 0, -1); cd.normalize()
+  const { wrap, hx, hy, hz } = makeVisual('summonpig')
+  scene.add(wrap)
+  const start = camera.position.clone().addScaledVector(dir, 3)
+  const body = new CANNON.Body({ mass: TYPE.summonpig.mass, material: matBox, shape: new CANNON.Box(new CANNON.Vec3(hx, hy, hz)) })
+  body.position.set(start.x, hy + 0.15, start.z)
+  body.fixedRotation = true; body.updateMassProperties()   // 不翻滾，維持衝刺姿態
+  body.allowSleep = false
+  body.quaternion.setFromEuler(0, Math.atan2(cd.x, cd.z), 0)
+  world.addBody(body)
+  const ent = { body, group: wrap, type: 'summon', hp: 1e9, born: 0, dir: cd,
+    reach: Math.max(hx, hz) + 1.0, hit: new Set() }
+  // 播放素材的 Run 動作（衝刺感）
+  const clips = animClips.summonpig
+  if (clips && clips.length) {
+    const run = clips.find((c) => /run/i.test(c.name)) || clips.find((c) => /walk/i.test(c.name)) || clips[0]
+    ent.mixer = new THREE.AnimationMixer(wrap)
+    ent.mixer.clipAction(run).play()
+  }
+  body._ent = ent
+  entities.push(ent)   // 不放 balls；非目標，不計入 game.pigs、不被 killAnimal
+}
+function throwSpecial(kind, power) {
+  if (kind === 'bomb') throwBomb(power)
+  else if (kind === 'split') throwSplit(power)
+  else if (kind === 'summon') throwSummon(power)
+  sfx.throw()
+}
+function hasUsableSelected() { return !!(game && game.selected && game.specials && game.specials[game.selected]) }
+function selectSpecial(key) {
+  if (!game || !game.endless || game.over || game.paused || !game.specials) return
+  if (!game.specials[key]) return   // 未裝備或已用完
+  game.selected = (game.selected === key) ? null : key
+}
+// HUD 特殊槽：只在死鬥顯示；只在狀態改變時重繪
+let specialsSig = ''
+function updateSpecialsHUD() {
+  const el = document.getElementById('specials'); if (!el) return
+  const on = !!(game && game.endless && !game.over && game.specials)
+  el.classList.toggle('hidden', !on)
+  if (!on) { specialsSig = ''; return }
+  const sig = SPECIALS.map((s) => (game.specials[s.key] ? '1' : '0') + (game.selected === s.key ? '*' : '')).join('')
+  if (sig === specialsSig) return
+  specialsSig = sig
+  el.innerHTML = SPECIALS.map((s, i) => {
+    const cls = 'sp-slot' + (game.specials[s.key] ? '' : ' used') + (game.selected === s.key ? ' sel' : '')
+    return `<button class="${cls}" data-sp="${s.key}"><span class="sp-emoji">${s.emoji}</span><span class="sp-key">${i + 1}</span></button>`
+  }).join('')
+}
+// 商店 / 裝備彈窗
+function renderShop() {
+  const list = document.getElementById('shop-list'); if (!list) return
+  list.innerHTML = SPECIALS.map((s) => {
+    const on = !!loadout[s.key]
+    return `<div class="shop-item"><div class="shop-emoji">${s.emoji}</div>` +
+      `<div class="shop-info"><div class="shop-name">${s.name}</div><div class="shop-desc">${s.desc}</div></div>` +
+      `<button class="shop-toggle${on ? ' on' : ''}" data-sp="${s.key}">${on ? '已裝備' : '裝備'}</button></div>`
+  }).join('')
 }
 
 // ---- 瞄準拋物線預測 ----
@@ -988,7 +1143,8 @@ function startEndless() {
   initAudio()
   if (musicEnabled) music.start()
   clearWorld()
-  game = { score: 0, ammo: 0, ammoStart: 0, pigs: 0, over: false, cooldown: 0, emptyT: 0, startT: 0, armed: false, intro: false, introT: 0, winDelay: 0, endless: true, wave: 0, paused: false }
+  game = { score: 0, ammo: 0, ammoStart: 0, pigs: 0, over: false, cooldown: 0, emptyT: 0, startT: 0, armed: false, intro: false, introT: 0, winDelay: 0, endless: true, wave: 0, paused: false,
+    specials: { bomb: !!loadout.bomb, split: !!loadout.split, summon: !!loadout.summon }, selected: null }
   bumpPlays()
   overlay.classList.add('hidden'); hud.msg.classList.add('hidden')
   document.getElementById('landing').classList.add('hidden')
@@ -1368,7 +1524,24 @@ document.getElementById('msg-text').addEventListener('keydown', (e) => { if (e.k
 for (const btn of document.querySelectorAll('.mclose[data-close]')) {
   btn.addEventListener('click', () => document.getElementById(btn.dataset.close).classList.add('hidden'))
 }
-for (const m of [msgModal, onlineModal]) m.addEventListener('click', (e) => { if (e.target === m) m.classList.add('hidden') })
+// 商店（裝備特殊彈藥）
+const shopModal = document.getElementById('shop-modal')
+function openShop() { renderShop(); shopModal.classList.remove('hidden') }
+document.getElementById('shop-btn-landing').addEventListener('click', openShop)
+document.getElementById('shop-list').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-sp]'); if (!b) return
+  loadout[b.dataset.sp] = !loadout[b.dataset.sp]; saveLoadout(); renderShop()
+})
+// 特殊彈藥槽：點選（手機）；桌機用 1/2/3 鍵
+document.getElementById('specials').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-sp]'); if (b) selectSpecial(b.dataset.sp)
+})
+document.addEventListener('keydown', (e) => {
+  if (e.key === '1') selectSpecial('bomb')
+  else if (e.key === '2') selectSpecial('split')
+  else if (e.key === '3') selectSpecial('summon')
+})
+for (const m of [msgModal, onlineModal, shopModal]) m.addEventListener('click', (e) => { if (e.target === m) m.classList.add('hidden') })
 // 心跳 + 線上人數：載入即上報，之後每 60 秒
 postHeartbeat(); refreshOnline(); refreshTotals()
 setInterval(() => { postHeartbeat(); refreshOnline() }, 60000)
@@ -1407,15 +1580,23 @@ document.addEventListener('mousemove', (e) => {
 function fireDown() {
   if (!game || game.over || game.paused) return
   if (game.intro) { endIntro(); return }   // 開場運鏡中 → 直接跳過
-  if (game.ammo <= 0 || game.cooldown > 0) return
+  if (game.cooldown > 0) return
+  if (game.ammo <= 0 && !hasUsableSelected()) return   // 沒普通彈、也沒選可用特殊彈 → 不發射
   charging = true; chargeT = 0
 }
 function fireUp() {
   if (!charging) return
   const power = Math.max(0.12, Math.min(1, chargeT / CHARGE_TIME))
   charging = false; hideTrajectory(); hud.power.style.width = '0%'
-  throwBall(power); sfx.throw()
-  game.ammo--; game.cooldown = 0.45; refreshHUD()
+  if (hasUsableSelected()) {                       // 發射選定的特殊彈（不扣普通彈藥）
+    const sel = game.selected
+    throwSpecial(sel, power)
+    if (!SPECIAL_UNLIMITED) { game.specials[sel] = false; game.selected = null }   // 測試期不消耗、保留選取可連發
+    game.cooldown = 0.45; refreshHUD()
+  } else {
+    throwBall(power); sfx.throw()
+    game.ammo--; game.cooldown = 0.45; refreshHUD()
+  }
 }
 canvas.addEventListener('mousedown', (e) => {
   if (e.button !== 0) return
@@ -1428,7 +1609,7 @@ window.addEventListener('mouseup', (e) => { if (e.button === 0) fireUp() })
 // ---- 手機：虛擬搖桿（控準星方向）+ 發射鈕 ----
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window
 if (IS_TOUCH) document.body.classList.add('touch')   // 供 CSS 調整版面（例如蓄力條上移避開搖桿）
-const LOOK_RATE = 0.95   // 虛擬搖桿轉視角速率（越低越不靈敏）
+const LOOK_RATE = 0.48   // 虛擬搖桿轉視角速率（越低越不靈敏）
 let lookX = 0, lookY = 0
 const touchControls = document.getElementById('touch-controls')
 {
@@ -1575,9 +1756,29 @@ function loop() {
         else e.calmT = 0
       }
     }
-    if (e.type === 'ball') {
+    if (e.type === 'ball' || e.type === 'bomb' || e.type === 'split' || e.type === 'summon') {
       e.born += dt
-      if (e.born > 7 || e.body.position.y < -8) { world.removeBody(e.body); scene.remove(e.group); entities.splice(i, 1); const bi = balls.indexOf(e); if (bi >= 0) balls.splice(bi, 1) }
+      if (e.type === 'summon') {                        // 召喚豬：水平衝刺 + 主動把沿路物件撞飛
+        e.body.wakeUp()
+        if (e.born < 5) { e.body.velocity.x = e.dir.x * 30; e.body.velocity.z = e.dir.z * 30 }
+        const P = e.body.position, R = e.reach
+        for (const o of entities) {
+          if (o === e || o.type === 'summon' || o.type === 'ball' || o.type === 'bomb' || o.type === 'split') continue
+          if (e.hit.has(o)) continue
+          const dx = o.body.position.x - P.x, dz = o.body.position.z - P.z, dy = o.body.position.y - P.y
+          const d2 = Math.hypot(dx, dz)
+          if (d2 > R || Math.abs(dy) > R + 1.5) continue
+          e.hit.add(o); o.body.wakeUp()
+          const m = o.body.mass || 1, inv = 1 / (d2 || 1)
+          o.body.applyImpulse(new CANNON.Vec3(
+            (e.dir.x * 16 + dx * inv * 5) * m, 12 * m, (e.dir.z * 16 + dz * inv * 5) * m),
+            new CANNON.Vec3(0, 0, 0))
+        }
+      }
+      if (e.type === 'split' && e.born > 0.3 && !e.split) { e.split = true; doSplit(e) }   // 分裂成霰彈
+      const gone = e.born > 7 || e.body.position.y < -8 ||
+        (e.type === 'bomb' && e.boom) || (e.type === 'split' && e.split) || (e.type === 'summon' && e.born > 5)
+      if (gone) { world.removeBody(e.body); scene.remove(e.group); entities.splice(i, 1); const bi = balls.indexOf(e); if (bi >= 0) balls.splice(bi, 1) }
     }
     if (e.dead && e.popping !== undefined) {
       e.popping += dt
@@ -1624,6 +1825,7 @@ function loop() {
 
   // HUD 空中 BONUS 倍率條
   updateAirBonusHUD(flyBonus, flyHeight)
+  updateSpecialsHUD()
 
   // 手機控制項：只在實際遊玩中顯示（選單/暫停/結算時隱藏）
   if (touchControls) {
