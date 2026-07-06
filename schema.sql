@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS scores (
   name TEXT,
   level TEXT,
   score INTEGER DEFAULT 0,
+  note TEXT,          -- 額外資訊（不影響排名）：死鬥/快樂＝波數；飛高＝模式
   created_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_scores_score ON scores (score DESC);
@@ -53,3 +54,4 @@ INSERT OR IGNORE INTO stats (id) VALUES (1);
 -- 既有資料庫補欄位（新欄位；已存在會報錯可忽略）：
 -- ALTER TABLE stats ADD COLUMN kills INTEGER NOT NULL DEFAULT 0;
 -- ALTER TABLE stats ADD COLUMN seconds INTEGER NOT NULL DEFAULT 0;
+-- ALTER TABLE scores ADD COLUMN note TEXT;

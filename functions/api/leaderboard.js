@@ -10,7 +10,7 @@ export const onRequestGet = async ({ request, env }) => {
     let results
     if (level) {
       ;({ results } = await env.DB.prepare(
-        `SELECT s.name, s.score, s.level, s.created_at
+        `SELECT s.name, s.score, s.level, s.note, s.created_at
            FROM scores s
            JOIN (SELECT name, MAX(score) AS ms FROM scores WHERE level = ? GROUP BY name) b
              ON s.name = b.name AND s.score = b.ms AND s.level = ?
@@ -28,7 +28,7 @@ export const onRequestGet = async ({ request, env }) => {
           LIMIT ?`,
       ).bind(limit).all())
     }
-    return json(results.map((r) => ({ name: r.name, score: r.score, level: r.level, at: r.created_at })))
+    return json(results.map((r) => ({ name: r.name, score: r.score, level: r.level, note: r.note, at: r.created_at })))
   } catch {
     return json({ error: 'db error' }, 500)
   }
