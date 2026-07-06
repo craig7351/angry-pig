@@ -99,6 +99,22 @@
     #air-bonus #ab-value { font-size: 24px; font-weight: 800; color: #ffe27a;
       text-shadow: 0 2px 8px rgba(0,0,0,.6); }
 
+    /* 全螢幕即時飛行高度大字 */
+    #fly-big {
+      position: fixed; inset: 0; z-index: 6; pointer-events: none;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 4px; color: #fff; text-align: center;
+    }
+    #fly-big.hidden { display: none; }
+    #fly-big .fb-cap { font-size: clamp(16px, 3vw, 30px); font-weight: 800; letter-spacing: 6px;
+      color: #ffe27a; text-shadow: 0 2px 10px rgba(0,0,0,.6); opacity: .95; }
+    #fly-big .fb-num { font-size: clamp(72px, 22vw, 240px); font-weight: 900; line-height: 1;
+      color: #fff; text-shadow: 0 6px 26px rgba(0,0,0,.55), 0 0 40px rgba(110,231,255,.5);
+      font-variant-numeric: tabular-nums; }
+    #fly-big .fb-unit { font-size: .4em; font-weight: 800; margin-left: .12em; color: #9fe6ff; }
+    #fly-big.pop { animation: fbPop .18s ease-out; }
+    @keyframes fbPop { 0% { transform: scale(1); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
+
     /* 開始 / 結束 覆蓋 */
     #overlay, #msg, #pause {
       position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
@@ -113,23 +129,30 @@
     .box { background: #fff; color: #222; border-radius: 18px; padding: 30px 42px; text-align: center;
       box-shadow: 0 20px 60px rgba(0,0,0,.4); max-width: 460px; }
 
-    /* 關卡選擇選單 */
-    .menu { background: #fff; color: #222; border-radius: 20px; padding: 32px 40px; text-align: center;
-      box-shadow: 0 20px 60px rgba(0,0,0,.4); max-width: 720px; }
-    .menu h2 { font-size: 26px; margin-bottom: 10px; }
-    .menu .howto { font-size: 13px; color: #666; line-height: 1.7; margin-bottom: 22px; }
-    .menu .tip { font-size: 12px; color: #999; margin-top: 20px; }
-    #level-list { display: grid; grid-template-columns: repeat(5, 84px); gap: 10px; justify-content: center; }
+    /* 關卡選擇選單（羊皮紙木框風） */
+    .menu { background: #fbf1d6; color: #6b4a2a; border: 5px solid #d3934e; border-radius: 24px;
+      padding: 24px 26px; text-align: center; box-shadow: 0 0 0 4px #a86a34, 0 22px 50px rgba(0,0,0,.45);
+      width: min(94vw, 620px); max-height: 92vh; overflow-y: auto; }
+    .menu h2 { font-size: 26px; color: #7a4a1e; margin-bottom: 8px; }
+    .menu .howto { font-size: 12px; color: #8a6a44; line-height: 1.9; margin-bottom: 16px; }
+    .menu .howto kbd { background: #ecdcb4; color: #6b4a2a; border-radius: 5px; padding: 1px 6px; }
+    .menu .tip { font-size: 11px; color: #a98f6a; margin-top: 16px; }
+    #level-list { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+    @media (max-width: 600px) { #level-list { grid-template-columns: repeat(4, 1fr); gap: 10px; } }
+    @media (max-width: 430px) { #level-list { grid-template-columns: repeat(3, 1fr); } }
     .level-card { display: flex; flex-direction: column; align-items: center; gap: 3px;
-      width: 84px; padding: 10px 6px; border-radius: 12px; background: #f4f4f8;
-      box-shadow: 0 3px 8px rgba(0,0,0,.08); cursor: pointer; transition: transform .12s, box-shadow .12s; }
-    .level-card:hover:not(.locked) { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,.16); background: #fff; }
-    .level-card.locked { cursor: not-allowed; opacity: .55; }
+      padding: 12px 6px; border-radius: 14px; background: #fff7e3; border: 2px solid #e8cfa0;
+      box-shadow: 0 3px 0 #e0c48f; cursor: pointer; transition: transform .12s; }
+    .level-card:hover:not(.locked) { transform: translateY(-2px); background: #fffbef; }
+    .level-card.locked { cursor: not-allowed; opacity: .5; }
     .level-card .lv-num { font-size: 22px; font-weight: 800; color: #e0533b; line-height: 1; }
-    .level-card.locked .lv-num { color: #aaa; }
-    .level-card .lv-name { font-size: 12px; font-weight: 600; color: #444; }
-    .level-card .lv-stars .cs { font-size: 14px; color: #d9d9e0; }
+    .level-card.locked .lv-num { color: #b39a72; }
+    .level-card .lv-name { font-size: 12px; font-weight: 700; color: #7a5a34; }
+    .level-card .lv-stars .cs { font-size: 14px; color: #e6d3a8; }
     .level-card .lv-stars .cs.on { color: #ffc32b; }
+    #to-home { background: #ecdcb4; color: #7a5a34; box-shadow: 0 4px 0 rgba(0,0,0,.12); font-weight: 900;
+      border-radius: 16px; margin-top: 18px; }
+    #to-home:hover { background: #f6ead0; }
     .box h2 { font-size: 26px; margin-bottom: 10px; }
     .box p { font-size: 14px; color: #555; line-height: 1.7; margin-bottom: 18px; }
     button { cursor: pointer; border: none; font: inherit; font-size: 16px; font-weight: 700;
@@ -201,6 +224,15 @@
     #start-btn:hover:not(:disabled), #endless-btn:hover:not(:disabled) { filter: brightness(1.05); }
     #start-btn:active:not(:disabled), #endless-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,.18); }
     #start-btn:disabled, #endless-btn:disabled { background: #c9bfa6; box-shadow: none; cursor: not-allowed; opacity: .7; }
+    #happy-btn { width: 100%; border: none; border-radius: 16px; color: #fff; cursor: pointer; font-weight: 900;
+      padding: 12px; line-height: 1.15; box-shadow: 0 5px 0 rgba(0,0,0,.18), 0 8px 14px rgba(0,0,0,.2);
+      display: flex; flex-direction: column; align-items: center; gap: 1px; transition: transform .1s, filter .1s;
+      background: linear-gradient(#5bd06a, #2a9d3f); }
+    #happy-btn span.big { font-size: 21px; letter-spacing: 1px; }
+    #happy-btn small { font-size: 12px; font-weight: 700; opacity: .92; }
+    #happy-btn:hover:not(:disabled) { filter: brightness(1.05); }
+    #happy-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,.18); }
+    #happy-btn:disabled { background: #c9bfa6; box-shadow: none; cursor: not-allowed; opacity: .7; }
     #name-hint { font-size: 12px; color: #d24a2a; font-weight: 800; margin: -2px 0; min-height: 14px; }
     /* 小功能鈕（圖示上、字在下） */
     .landing-btns { display: flex; gap: 8px; justify-content: center; }
@@ -231,15 +263,16 @@
     .lb-rank.top { color: #ffc32b; font-size: 18px; }
     .lb-name { flex: 1; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .lb-lv { font-size: 12px; color: #888; }
+    .lb-note { font-size: 11px; font-weight: 800; color: #7a5a34; background: #f3e6c6;
+      border-radius: 999px; padding: 2px 8px; white-space: nowrap; }
     .lb-score { font-weight: 800; color: #e0533b; min-width: 64px; text-align: right; }
     .lb-empty { text-align: center; color: #999; padding: 24px; font-size: 14px; }
     .lb-src { text-align: center; font-size: 12px; font-weight: 700; color: #888; padding: 2px 0 10px; }
     .lb-row.me { background: #fff3ec; box-shadow: inset 0 0 0 2px #f0a58e; border-radius: 8px; }
-    .lb-filter { display: flex; align-items: center; gap: 8px; padding: 12px 20px 4px; }
-    .lb-filter label { font-size: 12px; font-weight: 700; color: #666; }
-    #lb-level { flex: 1; font-size: 14px; font-weight: 700; color: #333; padding: 7px 10px;
-      border: 2px solid #e6e6ee; border-radius: 10px; background: #fff; outline: none; cursor: pointer; }
-    #lb-level:focus { border-color: #e0533b; }
+    .lb-tabs { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 20px 4px; justify-content: center; }
+    .lb-tab { font-size: 13px; font-weight: 800; color: #666; padding: 7px 14px; border: none;
+      border-radius: 999px; background: #eee; cursor: pointer; box-shadow: none; }
+    .lb-tab.active { background: #e0533b; color: #fff; }
 
     /* 過關畫面：本關名次 + 迷你排行榜 */
     #msg-rank { font-size: 16px; font-weight: 800; color: #444; margin: 4px 0 10px; }
@@ -278,7 +311,8 @@
 
     /* 特殊彈藥槽（死鬥）：右側直排 */
     #specials { position: fixed; right: 12px; top: 50%; transform: translateY(-50%); z-index: 6;
-      display: flex; flex-direction: column; gap: 10px; }
+      display: flex; flex-direction: column; flex-wrap: wrap; align-content: flex-end;
+      gap: 8px; max-height: 92vh; }
     #specials.hidden { display: none; }
     .sp-slot { position: relative; width: 52px; height: 52px; border-radius: 12px; padding: 0;
       display: flex; align-items: center; justify-content: center; color: #fff; box-shadow: none;
@@ -290,7 +324,8 @@
     .sp-slot.used { opacity: .35; }
 
     /* 商店 */
-    #shop-list { padding: 8px 16px 18px; }
+    #shop-count.warn { color: #d24a2a; font-weight: 900; }
+    #shop-list { padding: 8px 16px 18px; overflow-y: auto; }
     .shop-item { display: flex; align-items: center; gap: 12px; padding: 11px 6px; border-bottom: 1px solid #f2f2f5; }
     .shop-emoji { font-size: 30px; }
     .shop-info { flex: 1; text-align: left; }
@@ -309,6 +344,7 @@
     <div class="stat"><span class="k">分數</span><span class="v" id="score">0</span></div>
     <div class="stat"><span class="k">彈藥</span><span class="v" id="ammo"></span></div>
     <div class="stat"><span class="k">剩餘動物</span><span class="v" id="pigs"></span></div>
+    <div class="stat"><span class="k">最高飛行</span><span class="v" id="fly-best">0.0 m</span></div>
   </div>
   <div id="power"><div id="power-fill"></div></div>
 
@@ -343,12 +379,18 @@
     <div id="ab-value">+0</div>
   </div>
 
+  <!-- 刷新最高飛行紀錄時：全螢幕大字即時攀升 -->
+  <div id="fly-big" class="hidden">
+    <div class="fb-cap">最高飛行</div>
+    <div class="fb-num"><span id="fb-val">0.0</span><span class="fb-unit">m</span></div>
+  </div>
+
   <div id="overlay">
     <div class="menu">
       <h2>🎯 選擇關卡</h2>
       <p class="howto">
-        <kbd>移動滑鼠</kbd> 瞄準　<kbd>按住左鍵</kbd> 蓄力　<kbd>放開</kbd> 丟球　把動物撞下箱子摔到地板就消滅<br>
-        遊戲中按 <kbd>Esc</kbd> 返回 ·　<kbd>M</kbd> 開關音樂
+        移動瞄準 · 按住蓄力 · 放開丟球，把動物撞下箱子落地消滅<br>
+        遊戲中 <kbd>Esc</kbd> 返回 ·　<kbd>M</kbd> 開關音樂
       </p>
       <div id="level-list"></div>
       <button id="to-home" class="ghost" style="margin-top:18px">← 返回首頁</button>
@@ -381,6 +423,7 @@
       <input id="name-input" maxlength="12" placeholder="輸入你的名字" autocomplete="off" />
       <button id="start-btn" disabled><span class="big">▶ 開始遊戲</span><small>選關卡挑戰</small></button>
       <button id="endless-btn" disabled><span class="big">☠️ 死鬥模式</span><small>無限波生存</small></button>
+      <button id="happy-btn" disabled><span class="big">😄 快樂模式</span><small>無限子彈 · 怪物成群</small></button>
       <p id="name-hint">請先輸入名字才能開始</p>
       <div class="landing-btns">
         <button id="shop-btn-landing" class="ghost"><span class="ico">🛒</span>商店</button>
@@ -399,7 +442,7 @@
   <div id="shop-modal" class="modal hidden">
     <div class="lb-card">
       <div class="lb-head"><span>🛒 商店 · 特殊彈藥</span><button class="mclose" data-close="shop-modal">✕</button></div>
-      <div class="lb-src" style="padding:10px 16px 0">免費裝備 · 死鬥模式每場各帶一顆（最多 3 種）</div>
+      <div class="lb-src" style="padding:10px 16px 0">免費裝備 · 死鬥模式帶進場（<span id="shop-count">已裝備 3 / 3</span>）</div>
       <div id="shop-list"></div>
     </div>
   </div>
@@ -407,8 +450,8 @@
   <!-- 排行榜彈窗 -->
   <div id="lb-modal" class="modal hidden">
     <div class="lb-card">
-      <div class="lb-head"><span>🏆 排行榜（最高分）</span><button id="lb-close" class="mclose">✕</button></div>
-      <div class="lb-filter"><label>關卡</label><select id="lb-level"></select></div>
+      <div class="lb-head"><span>🏆 排行榜</span><button id="lb-close" class="mclose">✕</button></div>
+      <div class="lb-tabs" id="lb-tabs"></div>
       <div id="lb-list"></div>
     </div>
   </div>

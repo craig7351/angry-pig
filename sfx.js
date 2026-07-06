@@ -76,6 +76,22 @@ export const sfx = {
     blip({ freq: 520, type: 'triangle', dur: 0.12, gain: 0.35, sweep: 950 })
     noise({ dur: 0.08, gain: 0.18, type: 'highpass', freq: 1200 })
   },
+  // 一分多：分裂瞬間的清脆電光散射
+  split() {
+    blip({ freq: 520, type: 'triangle', dur: 0.14, gain: 0.3, sweep: 1200 })
+    blip({ freq: 780, type: 'sine', dur: 0.1, gain: 0.18, sweep: 1500, delay: 0.02 })
+    noise({ dur: 0.12, gain: 0.25, type: 'bandpass', freq: 2200, sweep: 900 })
+  },
+  // 連鎖閃電：高頻爆裂
+  zap() {
+    blip({ freq: 1600, type: 'sawtooth', dur: 0.16, gain: 0.28, sweep: 300 })
+    noise({ dur: 0.18, gain: 0.32, type: 'highpass', freq: 3000, sweep: 1200 })
+  },
+  // 彈跳彈：Q 彈
+  boing() {
+    blip({ freq: 300, type: 'sine', dur: 0.18, gain: 0.3, sweep: 900 })
+    blip({ freq: 900, type: 'sine', dur: 0.12, gain: 0.15, sweep: 260, delay: 0.06 })
+  },
   // 召喚豬：厚重巨獸吼叫（發射瞬間）
   summon() {
     blip({ freq: 240, type: 'sawtooth', dur: 0.65, gain: 0.5, sweep: 55 })
