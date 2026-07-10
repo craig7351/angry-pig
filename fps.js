@@ -1014,6 +1014,27 @@ const hud = {
   flyBig: document.getElementById('fly-big'), flyBigVal: document.getElementById('fb-val'),
   coins: document.getElementById('coins'), coinStat: document.getElementById('coin-stat'),
 }
+// 新手動態提示：只在玩家「第一次遊玩」出現，射一發後淡出，之後永不再顯示
+const HINTED_KEY = 'angrypig:hinted'
+let hinted = false; try { hinted = !!localStorage.getItem(HINTED_KEY) } catch {}
+let hintStep = 0
+const hintEl = document.getElementById('hint')
+function showHint(t) { if (hintEl) { hintEl.textContent = t; hintEl.classList.add('show') } }
+function hideHint() { if (hintEl) hintEl.classList.remove('show'); hintStep = 0 }
+function markHinted() { hinted = true; try { localStorage.setItem(HINTED_KEY, '1') } catch {} }
+// 進入可操作狀態時觸發第一句提示（開場運鏡結束後）
+function maybeStartHint() {
+  if (hinted || hintStep !== 0) return
+  showHint(IS_TOUCH ? '👆 按住發射鈕蓄力，放開丟出' : '🖱️ 按住左鍵蓄力，放開發射')
+  hintStep = 1
+}
+// 射出第一發後：換第二句、標記已教學、數秒後淡出
+function hintOnFire() {
+  if (hintStep !== 1) return
+  showHint('🎯 瞄準動物或堡壘弱點，把牠們轟飛！')
+  hintStep = 2; markHinted(); setTimeout(hideHint, 4000)
+}
+
 function refreshHUD() {
   if (!game) return
   hud.score.textContent = game.score
@@ -1270,6 +1291,7 @@ const LEVELS = [
 ]
 
 function resetGame(idx) {
+  hideHint()
   currentLevel = Math.max(0, Math.min(LEVELS.length - 1, idx))
   clearWorld()
   const L = LEVELS[currentLevel]
@@ -1303,6 +1325,7 @@ function calcStars() {
 function win() {
   if (game.over) return
   game.over = true
+  hideHint()
   game.score += game.ammo * 1000
   const stars = calcStars()
   levelStars[currentLevel] = Math.max(levelStars[currentLevel] || 0, stars)
@@ -1386,6 +1409,7 @@ function waveAmmo(n) {
   return Math.min(3 + Math.floor(n / 4), 5)   // 每波補 3~5 顆（隨波數 3→5）
 }
 function startEndless(happy = false) {
+  hideHint()
   initAudio()
   if (musicEnabled) music.start()
   clearWorld()
@@ -1422,6 +1446,7 @@ const HAPPY_KEY = '快樂'
 function endEndless() {
   if (game.over) return
   game.over = true
+  hideHint()
   hud.msgTitle.textContent = game.happy ? '😄 快樂模式結束' : '☠️ 死鬥結束'
   hud.msgText.textContent = `撐到第 ${game.wave} 波・得分 ${game.score}` + flySuffix()
   hud.stars.innerHTML = ''
@@ -1924,6 +1949,7 @@ function fireUp() {
   if (!charging) return
   const power = Math.max(0.12, Math.min(1, chargeT / CHARGE_TIME))
   charging = false; hideTrajectory(); hud.power.style.width = '0%'
+  hintOnFire()
   if (hasUsableSelected()) {                       // 發射選定的特殊彈（不扣普通彈藥）
     const sel = game.selected
     throwSpecial(sel, power)
@@ -2002,6 +2028,7 @@ function endIntro() {
   game.startT = 0; game.armed = false      // 落地判定的緩衝從這一刻起算
   camera.position.copy(EYE)
   camera.rotation.set(pitch, yaw, 0)
+  maybeStartHint()   // 運鏡結束、開始可操作 → 首次遊玩顯示提示
 }
 
 // ============================================================

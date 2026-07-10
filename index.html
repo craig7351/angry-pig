@@ -350,6 +350,13 @@
       font-size: 16px; font-weight: 900; background: #e0533b; color: #fff; border-radius: 12px; box-shadow: none; }
     #shop-continue.hidden { display: none; }
     #coins { color: #f4b93a; }
+    /* 新手動態提示 */
+    #hint { position: fixed; left: 50%; bottom: 26%; transform: translate(-50%, 8px); z-index: 6;
+      pointer-events: none; background: rgba(0,0,0,.62); color: #fff; font-weight: 800;
+      font-size: clamp(14px, 3.4vw, 20px); padding: 11px 22px; border-radius: 999px;
+      box-shadow: 0 4px 16px rgba(0,0,0,.4); max-width: 88vw; text-align: center;
+      opacity: 0; transition: opacity .35s ease, transform .35s ease; }
+    #hint.show { opacity: 1; transform: translate(-50%, 0); }
   </style>
 </head>
 <body>
@@ -402,6 +409,9 @@
     <div class="fb-cap">最高飛行</div>
     <div class="fb-num"><span id="fb-val">0.0</span><span class="fb-unit">m</span></div>
   </div>
+
+  <!-- 新手動態提示（僅首次遊玩） -->
+  <div id="hint"></div>
 
   <div id="overlay">
     <div class="menu">
