@@ -360,6 +360,9 @@
     .set-toggle { flex: 1; padding: 8px; font-size: 14px; font-weight: 800; border-radius: 10px;
       background: #e9e9ee; color: #666; box-shadow: none; }
     .set-toggle.on { background: #5bbe4a; color: #fff; }
+    .set-reset { margin-top: 4px; align-self: center; padding: 9px 20px; font-size: 14px; font-weight: 800;
+      border-radius: 999px; background: #efe6d0; color: #7a5a34; box-shadow: none; }
+    .set-reset:hover { background: #e6d8b8; }
     /* 新手動態提示 */
     #hint { position: fixed; left: 50%; bottom: 26%; transform: translate(-50%, 8px); z-index: 6;
       pointer-events: none; background: rgba(0,0,0,.62); color: #fff; font-weight: 800;
@@ -512,6 +515,7 @@
         <label class="set-row"><span>🎵 音樂音量</span><input type="range" id="set-mus" min="0" max="100" step="1"><b id="set-mus-v"></b></label>
         <label class="set-row"><span>👁️ 視野 FOV</span><input type="range" id="set-fov" min="60" max="90" step="1"><b id="set-fov-v"></b></label>
         <label class="set-row"><span>📳 畫面震動</span><button id="set-shake" class="set-toggle"></button></label>
+        <button id="set-reset" class="set-reset">↺ 回到預設值</button>
       </div>
     </div>
   </div>

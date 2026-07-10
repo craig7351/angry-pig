@@ -505,7 +505,7 @@ function addBody(type, x, z, bottomY, opts = {}) {
     body.addEventListener('collide', (e) => {
       if (!game || !game.armed) return
       const v = Math.abs(e.contact.getImpactVelocityAlongNormal())
-      if (v > 2.6) playClack(v, soft)
+      if (v > 2.0) playClack(v, soft)
     })
   }
   entities.push(ent)
@@ -576,6 +576,20 @@ function addScore(v) { game.score += v }
 // 金幣（僅死鬥）：跟分數/飛行 bonus 脫鉤，只從「擊殺數 + 每波清空」發放，避免通膨
 const COIN_PER_KILL = 50
 function addCoins(v) { if (game.endless && !game.happy) game.coins = (game.coins || 0) + v }
+
+// 空中狙擊：紅球（或其他子彈）打中「已被擊飛且離地夠高」的動物 → 賞金；每隻每波限一次（防 farm）
+const AIR_SNIPE_BOUNTY = 1000
+const AIR_SNIPE_MIN_HEIGHT = 2.5   // 離起始高度多少公尺以上才算「在空中」
+function tryAirSnipe(a) {
+  if (!a || a.dead || a.bountied || a.boss || !isAnimal(a.type) || !a.launched) return
+  if ((a.body.position.y - (a.startY || 0)) < AIR_SNIPE_MIN_HEIGHT) return   // 必須真的在空中，不是地面被輕推
+  a.bountied = true
+  addScore(AIR_SNIPE_BOUNTY); addCoins(AIR_SNIPE_BOUNTY)
+  sfx.combo(9); addShake(0.3)
+  const p = a.body.position
+  spawnFloater(p, (a.hy || 0.8) + 1.4, '🎯 空中狙擊！+' + AIR_SNIPE_BOUNTY,
+    { fill: '#ffe27a', size: 64, life: 1.3, rise: 2.2, grow: 0.6, worldScale: 2.4 })
+}
 
 // 里程碑門檻（飛行中突破就爆字）
 const MS_HEIGHT = [{ v: 2.0, t: '騰空！' }, { v: 4.0, t: '高飛！' }, { v: 6.5, t: '沖天！' }]
@@ -760,13 +774,14 @@ function playStomp(v) {
 }
 // ---- 設定（靈敏度 / 音量 / FOV / 震動）：存 localStorage、即時套用 ----
 const SETTINGS_KEY = 'angrypig:settings'
-const settings = {
+const SETTINGS_DEFAULTS = {
   sens: 1.0,     // 視角靈敏度倍率（0.3~2.0）
   sfxVol: 50,    // 音效音量 0~100
   musVol: 50,    // 音樂音量 0~100
   fov: 70,       // 基礎視野角度（60~90）
   shake: true,   // 畫面震動
 }
+const settings = { ...SETTINGS_DEFAULTS }
 try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}) } catch {}
 function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)) } catch {} }
 function applySettings() {
@@ -799,6 +814,8 @@ function throwBall(power) {
   body.addEventListener('collide', (e) => {
     const v = Math.abs(e.contact.getImpactVelocityAlongNormal())
     if (v > 2.5) playThud(v)
+    const other = e.body && e.body._ent
+    if (v > 2.5 && other) tryAirSnipe(other)   // 空中狙擊：打中飛在空中的動物 → 賞金
   })
   balls.push(ent)
   entities.push(ent)
@@ -2097,6 +2114,10 @@ setSfx.addEventListener('input', () => { settings.sfxVol = +setSfx.value; setSfx
 setMus.addEventListener('input', () => { settings.musVol = +setMus.value; setMusV.textContent = settings.musVol + '%'; setMusicVolume(settings.musVol / 100); saveSettings() })
 setFov.addEventListener('input', () => { settings.fov = +setFov.value; setFovV.textContent = settings.fov + '°'; resize(); saveSettings() })
 setShakeBtn.addEventListener('click', () => { settings.shake = !settings.shake; setShakeBtn.textContent = settings.shake ? '開' : '關'; setShakeBtn.classList.toggle('on', settings.shake); saveSettings() })
+document.getElementById('set-reset').addEventListener('click', () => {
+  Object.assign(settings, SETTINGS_DEFAULTS)   // 全部回到預設
+  saveSettings(); applySettings(); syncSettingsUI()
+})
 // 心跳 + 線上人數：載入即上報，之後每 60 秒
 postHeartbeat(); refreshOnline(); refreshTotals()
 setInterval(() => { postHeartbeat(); refreshOnline() }, 60000)

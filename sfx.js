@@ -70,15 +70,16 @@ export const sfx = {
     blip({ freq: 130, type: 'sine', dur: 0.12, gain: g, sweep: 65 })
     noise({ dur: 0.05, gain: g * 0.4, type: 'lowpass', freq: 400 })
   },
-  // 積木碰撞：木箱＝清脆木頭敲擊；soft（紙箱/沙包）＝悶一點的低頻
+  // 積木碰撞：木箱＝清脆木頭敲擊；soft（紙箱/沙包）＝悶一點的低頻。加重版：更大聲 + 低頻增加重量感
   wood(v = 1, soft = false) {
-    const g = Math.min(0.34, 0.06 + v * 0.02)
+    const g = Math.min(0.62, 0.14 + v * 0.03)
     if (soft) {
-      blip({ freq: 150, type: 'sine', dur: 0.09, gain: g * 0.9, sweep: 80 })
-      noise({ dur: 0.07, gain: g * 0.5, type: 'lowpass', freq: 500 })
+      blip({ freq: 140, type: 'sine', dur: 0.12, gain: g, sweep: 70 })
+      noise({ dur: 0.1, gain: g * 0.6, type: 'lowpass', freq: 450 })
     } else {
-      blip({ freq: 240, type: 'square', dur: 0.06, gain: g * 0.5, sweep: 130 })
-      noise({ dur: 0.06, gain: g, type: 'bandpass', freq: 1500, sweep: 700 })
+      blip({ freq: 220, type: 'square', dur: 0.07, gain: g * 0.7, sweep: 120 })
+      noise({ dur: 0.07, gain: g * 1.1, type: 'bandpass', freq: 1400, sweep: 650 })
+      blip({ freq: 90, type: 'sine', dur: 0.09, gain: g * 0.55, sweep: 55 })   // 低頻「咚」增加撞擊重量
     }
   },
   pop() {
