@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js'
 import * as CANNON from 'cannon-es'
-import { initAudio, sfx, music } from './sfx.js'
+import { initAudio, sfx, music, setSfxVolume, setMusicVolume } from './sfx.js'
 
 // ============================================================
 //  第一人稱 3D 投擲遊戲（three.js 渲染 + cannon-es 3D 物理）
@@ -758,9 +758,26 @@ function playStomp(v) {
   const t = performance.now()
   if (t - lastStomp > 90) { lastStomp = t; sfx.stomp(v) }
 }
+// ---- 設定（靈敏度 / 音量 / FOV / 震動）：存 localStorage、即時套用 ----
+const SETTINGS_KEY = 'angrypig:settings'
+const settings = {
+  sens: 1.0,     // 視角靈敏度倍率（0.3~2.0）
+  sfxVol: 50,    // 音效音量 0~100
+  musVol: 50,    // 音樂音量 0~100
+  fov: 70,       // 基礎視野角度（60~90）
+  shake: true,   // 畫面震動
+}
+try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}) } catch {}
+function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)) } catch {} }
+function applySettings() {
+  setSfxVolume(settings.sfxVol / 100)
+  setMusicVolume(settings.musVol / 100)
+  resize()   // 套用 FOV
+}
+
 // ---- 畫面震動 ----
 let shakeMag = 0
-function addShake(v) { shakeMag = Math.min(1.5, shakeMag + v) }
+function addShake(v) { if (!settings.shake) return; shakeMag = Math.min(1.5, shakeMag + v) }
 function throwBall(power) {
   const dir = new THREE.Vector3()
   camera.getWorldDirection(dir)
@@ -2053,11 +2070,31 @@ document.getElementById('specials').addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key >= '1' && e.key <= '9') { const k = slotKeys()[+e.key - 1]; if (k) selectSpecial(k) }
 })
-for (const m of [msgModal, onlineModal, shopModal]) m.addEventListener('click', (e) => {
+const settingsModal = document.getElementById('settings-modal')
+for (const m of [msgModal, onlineModal, shopModal, settingsModal]) m.addEventListener('click', (e) => {
   if (e.target !== m) return
   if (m === shopModal && shopMode === 'buy') return   // 補給站不能點背景關閉
   m.classList.add('hidden')
 })
+// ---- 設定選單 ----
+const setSens = document.getElementById('set-sens'), setSensV = document.getElementById('set-sens-v')
+const setSfx = document.getElementById('set-sfx'), setSfxV = document.getElementById('set-sfx-v')
+const setMus = document.getElementById('set-mus'), setMusV = document.getElementById('set-mus-v')
+const setFov = document.getElementById('set-fov'), setFovV = document.getElementById('set-fov-v')
+const setShakeBtn = document.getElementById('set-shake')
+function syncSettingsUI() {
+  setSens.value = settings.sens; setSensV.textContent = settings.sens.toFixed(1) + '×'
+  setSfx.value = settings.sfxVol; setSfxV.textContent = settings.sfxVol + '%'
+  setMus.value = settings.musVol; setMusV.textContent = settings.musVol + '%'
+  setFov.value = settings.fov; setFovV.textContent = settings.fov + '°'
+  setShakeBtn.textContent = settings.shake ? '開' : '關'; setShakeBtn.classList.toggle('on', settings.shake)
+}
+document.getElementById('settings-btn-landing').addEventListener('click', () => { syncSettingsUI(); settingsModal.classList.remove('hidden') })
+setSens.addEventListener('input', () => { settings.sens = +setSens.value; setSensV.textContent = settings.sens.toFixed(1) + '×'; saveSettings() })
+setSfx.addEventListener('input', () => { settings.sfxVol = +setSfx.value; setSfxV.textContent = settings.sfxVol + '%'; setSfxVolume(settings.sfxVol / 100); saveSettings() })
+setMus.addEventListener('input', () => { settings.musVol = +setMus.value; setMusV.textContent = settings.musVol + '%'; setMusicVolume(settings.musVol / 100); saveSettings() })
+setFov.addEventListener('input', () => { settings.fov = +setFov.value; setFovV.textContent = settings.fov + '°'; resize(); saveSettings() })
+setShakeBtn.addEventListener('click', () => { settings.shake = !settings.shake; setShakeBtn.textContent = settings.shake ? '開' : '關'; setShakeBtn.classList.toggle('on', settings.shake); saveSettings() })
 // 心跳 + 線上人數：載入即上報，之後每 60 秒
 postHeartbeat(); refreshOnline(); refreshTotals()
 setInterval(() => { postHeartbeat(); refreshOnline() }, 60000)
@@ -2089,8 +2126,8 @@ document.addEventListener('pointerlockchange', () => {
 })
 document.addEventListener('mousemove', (e) => {
   if (!locked || (game && game.intro)) return
-  yaw -= e.movementX * SENS
-  pitch -= e.movementY * SENS
+  yaw -= e.movementX * SENS * settings.sens
+  pitch -= e.movementY * SENS * settings.sens
   pitch = Math.max(-1.45, Math.min(1.0, pitch))
   camera.rotation.y = yaw; camera.rotation.x = pitch
 })
@@ -2217,8 +2254,8 @@ function loop() {
     } else {
       // 手機虛擬搖桿：控準星方向
       if (IS_TOUCH && (lookX || lookY)) {
-        yaw -= lookX * LOOK_RATE * dt
-        pitch -= lookY * LOOK_RATE * dt
+        yaw -= lookX * LOOK_RATE * settings.sens * dt
+        pitch -= lookY * LOOK_RATE * settings.sens * dt
         pitch = Math.max(-1.45, Math.min(1.0, pitch))
         camera.rotation.y = yaw; camera.rotation.x = pitch
       }
@@ -2475,7 +2512,7 @@ function resize() {
   renderer.setSize(w, h)   // updateStyle=true：畫布 CSS 尺寸 = 可視區
   camera.aspect = w / h
   // 直式（手機）時降低 FOV 自動拉近，減少上下大量留白、堡壘更大更好瞄；橫式維持 70
-  camera.fov = camera.aspect >= 1 ? 70 : Math.max(60, Math.min(70, 52 + camera.aspect * 22))
+  camera.fov = camera.aspect >= 1 ? settings.fov : Math.max(settings.fov - 10, Math.min(settings.fov, (settings.fov - 18) + camera.aspect * 22))
   camera.updateProjectionMatrix()
   // 準星對齊畫布正中心（= 相機瞄準點），不靠 CSS 50% 以免 iOS 視窗高度差造成偏移
   const cx = document.getElementById('crosshair')
@@ -2488,6 +2525,7 @@ if (window.visualViewport) window.visualViewport.addEventListener('resize', resi
 loadAll().then(() => {
   buildEnvironment()
   applyBiome(0)   // 初始草原
+  applySettings()   // 套用已存設定（音量/FOV）
   resize()
   camera.rotation.set(pitch, yaw, 0)
   buildLevelSelect()

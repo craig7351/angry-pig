@@ -350,6 +350,15 @@
       font-size: 16px; font-weight: 900; background: #e0533b; color: #fff; border-radius: 12px; box-shadow: none; }
     #shop-continue.hidden { display: none; }
     #coins { color: #f4b93a; }
+    /* 設定選單 */
+    .set-body { padding: 12px 20px 20px; display: flex; flex-direction: column; gap: 16px; }
+    .set-row { display: flex; align-items: center; gap: 12px; }
+    .set-row > span { flex: 0 0 96px; font-weight: 800; color: #444; font-size: 14px; }
+    .set-row input[type=range] { flex: 1; accent-color: #e0533b; height: 4px; }
+    .set-row > b { flex: 0 0 44px; text-align: right; font-weight: 900; color: #e0533b; }
+    .set-toggle { flex: 1; padding: 8px; font-size: 14px; font-weight: 800; border-radius: 10px;
+      background: #e9e9ee; color: #666; box-shadow: none; }
+    .set-toggle.on { background: #5bbe4a; color: #fff; }
     /* 新手動態提示 */
     #hint { position: fixed; left: 50%; bottom: 26%; transform: translate(-50%, 8px); z-index: 6;
       pointer-events: none; background: rgba(0,0,0,.62); color: #fff; font-weight: 800;
@@ -472,6 +481,7 @@
         <button id="lb-btn-landing" class="ghost"><span class="ico">🏆</span>排行榜</button>
         <button id="msg-btn-landing" class="ghost"><span class="ico">💬</span>留言板</button>
         <button id="online-btn-landing" class="ghost"><span class="ico">📈</span>上線</button>
+        <button id="settings-btn-landing" class="ghost"><span class="ico">⚙️</span>設定</button>
         <button id="music-toggle" class="ghost"><span class="ico">🔊</span>音樂</button>
       </div>
       <div class="landing-stat">全服累計　🎮 <b id="total-plays">–</b> 場　🐾 <b id="total-kills">–</b> 隻　⏱ <b id="total-time">–</b></div>
@@ -487,6 +497,20 @@
       <div class="lb-src" id="shop-count" style="padding:10px 16px 0">免費挑開局 3 種</div>
       <div id="shop-list"></div>
       <button id="shop-continue" class="hidden">▶ 繼續下一波</button>
+    </div>
+  </div>
+
+  <!-- 設定彈窗（靈敏度 / 音量 / FOV / 震動） -->
+  <div id="settings-modal" class="modal hidden">
+    <div class="lb-card">
+      <div class="lb-head"><span>⚙️ 設定</span><button class="mclose" data-close="settings-modal">✕</button></div>
+      <div class="set-body">
+        <label class="set-row"><span>🎯 靈敏度</span><input type="range" id="set-sens" min="0.3" max="2" step="0.1"><b id="set-sens-v"></b></label>
+        <label class="set-row"><span>🔊 音效音量</span><input type="range" id="set-sfx" min="0" max="100" step="1"><b id="set-sfx-v"></b></label>
+        <label class="set-row"><span>🎵 音樂音量</span><input type="range" id="set-mus" min="0" max="100" step="1"><b id="set-mus-v"></b></label>
+        <label class="set-row"><span>👁️ 視野 FOV</span><input type="range" id="set-fov" min="60" max="90" step="1"><b id="set-fov-v"></b></label>
+        <label class="set-row"><span>📳 畫面震動</span><button id="set-shake" class="set-toggle"></button></label>
+      </div>
     </div>
   </div>
 
