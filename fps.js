@@ -825,14 +825,14 @@ function throwBall(power) {
 //  特殊彈藥（僅死鬥模式）：炸彈 / 一分多 / 召喚豬
 // ============================================================
 const SPECIALS = [
-  { key: 'bomb', emoji: '💣', name: '炸彈', desc: '命中即爆炸，掀翻周圍一整片', price: 1100 },
-  { key: 'split', emoji: '🎯', name: '一分多', desc: '飛行中分裂成多顆霰彈掃射', price: 850 },
-  { key: 'summon', emoji: '🐖', name: '召喚豬', desc: '召喚巨大豬往準星衝，撞倒一切', price: 1500 },
-  { key: 'blackhole', emoji: '🕳️', name: '黑洞彈', desc: '命中把周圍吸向中心再內爆', price: 1800 },
-  { key: 'lightning', emoji: '⚡', name: '連鎖閃電', desc: '天降閃電連鎖電擊一排動物', price: 1400 },
-  { key: 'wreck', emoji: '🎳', name: '鐵球', desc: '超重鐵球直接輾穿整座堡壘', price: 700 },
-  { key: 'tornado', emoji: '🌪️', name: '龍捲風', desc: '命中生成龍捲把東西往上捲飛', price: 1300 },
-  { key: 'cluster', emoji: '💥', name: '集束炸彈', desc: '空中散成多顆小炸彈連環爆', price: 1600 },
+  { key: 'bomb', emoji: '💣', img: 'assets/ui/sp-bomb.webp', name: '炸彈', desc: '命中即爆炸，掀翻周圍一整片', price: 1100 },
+  { key: 'split', emoji: '🎯', img: 'assets/ui/sp-split.webp', name: '一分多', desc: '飛行中分裂成多顆霰彈掃射', price: 850 },
+  { key: 'summon', emoji: '🐖', img: 'assets/ui/sp-summon.webp', name: '召喚豬', desc: '召喚巨大豬往準星衝，撞倒一切', price: 1500 },
+  { key: 'blackhole', emoji: '🕳️', img: 'assets/ui/sp-blackhole.webp', name: '黑洞彈', desc: '命中把周圍吸向中心再內爆', price: 1800 },
+  { key: 'lightning', emoji: '⚡', img: 'assets/ui/sp-lightning.webp', name: '連鎖閃電', desc: '天降閃電連鎖電擊一排動物', price: 1400 },
+  { key: 'wreck', emoji: '🎳', img: 'assets/ui/sp-wreck.webp', name: '鐵球', desc: '超重鐵球直接輾穿整座堡壘', price: 700 },
+  { key: 'tornado', emoji: '🌪️', img: 'assets/ui/sp-tornado.webp', name: '龍捲風', desc: '命中生成龍捲把東西往上捲飛', price: 1300 },
+  { key: 'cluster', emoji: '💥', img: 'assets/ui/sp-cluster.webp', name: '集束炸彈', desc: '空中散成多顆小炸彈連環爆', price: 1600 },
 ]
 const equippedKeys = () => SPECIALS.filter((s) => loadout[s.key]).map((s) => s.key).slice(0, 3)   // 開局帶 3 種各 1 顆
 const slotKeys = () => SPECIALS.map((s) => s.key)   // 死鬥/快樂 HUD 都列全 8 種（死鬥可在商店買到任一種）
@@ -1094,7 +1094,8 @@ function updateSpecialsHUD() {
     const c = cnt(k)
     const cls = 'sp-slot' + (c > 0 ? '' : ' used') + (game.selected === k ? ' sel' : '')
     const badge = c === Infinity ? '∞' : c   // 快樂無限顯示 ∞，死鬥顯示剩餘數
-    return `<button class="${cls}" data-sp="${k}"><span class="sp-emoji">${s.emoji}</span><span class="sp-key">${i + 1}</span><span class="sp-cnt">${badge}</span></button>`
+    const icon = s.img ? `<img class="sp-img" src="${s.img}" alt="${s.name}">` : `<span class="sp-emoji">${s.emoji}</span>`
+    return `<button class="${cls}" data-sp="${k}">${icon}<span class="sp-key">${i + 1}</span><span class="sp-cnt">${badge}</span></button>`
   }).join('')
 }
 // 商店：兩種模式 —— 'equip'（首頁免費挑開局 3 種）/ 'buy'（死鬥中每 10 波花金幣補貨）
@@ -1112,15 +1113,16 @@ function renderShop() {
     head.textContent = buying ? `💰 ${(game.coins || 0).toLocaleString()} 金幣` : `免費挑開局 3 種（已裝備 ${equippedKeys().length} / 3）`
   }
   list.innerHTML = SPECIALS.map((s) => {
+    const icon = s.img ? `<img class="shop-icon" src="${s.img}" alt="${s.name}">` : s.emoji
     const info = `<div class="shop-info"><div class="shop-name">${s.name}</div><div class="shop-desc">${s.desc}</div></div>`
     if (buying) {
       const own = (game.specials && game.specials[s.key]) || 0
       const afford = (game.coins || 0) >= s.price
-      return `<div class="shop-item"><div class="shop-emoji">${s.emoji}<span class="shop-own">×${own}</span></div>` + info +
+      return `<div class="shop-item"><div class="shop-emoji">${icon}<span class="shop-own">×${own}</span></div>` + info +
         `<button class="shop-buy${afford ? '' : ' poor'}" data-sp="${s.key}">💰 ${s.price}</button></div>`
     }
     const on = !!loadout[s.key]
-    return `<div class="shop-item"><div class="shop-emoji">${s.emoji}</div>` + info +
+    return `<div class="shop-item"><div class="shop-emoji">${icon}</div>` + info +
       `<button class="shop-toggle${on ? ' on' : ''}" data-sp="${s.key}">${on ? '已裝備' : '裝備'}</button></div>`
   }).join('')
 }
