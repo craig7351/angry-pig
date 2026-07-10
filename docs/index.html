@@ -68,6 +68,15 @@
   .sp b { display: block; font-size: 16px; }
   .sp span { font-size: 13.5px; color: var(--ink-soft); }
 
+  /* 操作說明 */
+  .card h3.hd { font-size: 22px; margin-bottom: 6px; }
+  .ctrl { list-style: none; }
+  .ctrl li { display: flex; align-items: center; gap: 12px; padding: 9px 0; font-size: 15px; color: var(--ink-soft);
+    border-bottom: 1px dashed var(--card-line); }
+  .ctrl li:last-child { border-bottom: 0; }
+  .ctrl .k { flex: 0 0 104px; text-align: center; background: #fff; border: 2px solid var(--card-line);
+    border-radius: 9px; padding: 5px 6px; font-weight: 800; font-size: 13px; color: var(--ink); box-shadow: 0 2px 0 var(--card-line); }
+
   /* Gallery */
   .shots { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
   .shots img { width: 100%; border-radius: 14px; border: 4px solid #fff; box-shadow: 0 12px 28px rgba(0,0,0,.3); display: block; }
@@ -126,6 +135,34 @@
       <div class="card"><div class="ico">🏆</div><h3>全球排行榜</h3><p>成績即時上傳，含防灌分機制；還有留言板與線上人數。</p></div>
       <div class="card"><div class="ico">⚙️</div><h3>可調設定</h3><p>靈敏度 / 音量 / 視野 FOV / 畫面震動，隨時調、記在本機。</p></div>
       <div class="card"><div class="ico">📱</div><h3>手機也能玩</h3><p>虛擬搖桿 + 發射鈕，觸控裝置自動降負載順順跑。</p></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <h2>操作說明</h2>
+    <p class="sub">桌機滑鼠、手機觸控都順手</p>
+    <div class="grid g2">
+      <div class="card">
+        <h3 class="hd">🖥️ 桌機</h3>
+        <ul class="ctrl">
+          <li><span class="k">滑鼠移動</span> 環顧、瞄準（畫面中央準星）</li>
+          <li><span class="k">按住左鍵</span> 蓄力，越久越大力（附拋物線預測）</li>
+          <li><span class="k">放開左鍵</span> 朝準星方向丟出</li>
+          <li><span class="k">1 ~ 8</span> 切換特殊彈藥（死鬥／快樂）</li>
+          <li><span class="k">Esc</span> 暫停 / 返回選單（可進設定）</li>
+          <li><span class="k">M</span> 開關背景音樂</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3 class="hd">📱 手機</h3>
+        <ul class="ctrl">
+          <li><span class="k">左下搖桿</span> 控制視角、瞄準</li>
+          <li><span class="k">右下發射鈕</span> 按住蓄力、放開丟出</li>
+          <li><span class="k">點右側槽</span> 切換特殊彈藥</li>
+          <li><span class="k">右上 ⏸</span> 暫停 / 設定 / 結束</li>
+          <li><span class="k">自動優化</span> 觸控裝置降畫質與陰影，省電、降溫</li>
+        </ul>
+      </div>
     </div>
   </section>
 
