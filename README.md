@@ -25,6 +25,8 @@
 - **手機**：左下虛擬搖桿控視角、右下發射鈕蓄力放開
 - 把動物 🐷🐑🐔🐱🐕🦝🐺🐴🐤 撞下箱子摔到地板就消滅；打中爆炸桶 🛢️ / 瓦斯桶 ⛽ 會連環爆
 - 短時間內連續擊殺會累計 **Combo 連擊**（跳字 + 音階上升 + 額外得分）；每次擊殺有 **Hit-stop 頓幀**強化打擊感
+- **🎯 空中狙擊**：先把動物打飛，趁牠在空中用第二發紅球命中 → 賞金 **+1000**（死鬥再送 1000 金幣）
+- **⚙️ 設定**：首頁或暫停畫面可調靈敏度 / 音效 / 音樂 / 視野 FOV / 畫面震動（存本機、一鍵回預設）
 
 | 死鬥即時 HUD（分數 / 金幣 / 最高飛行 + 右側特殊彈槽） | Boss + 連擊 + 爆炸 |
 |:---:|:---:|
@@ -73,7 +75,7 @@ npm run preview  # 預覽打包結果
 |------|------|
 | 渲染 | three.js r160（GLTFLoader / SkeletonUtils / InstancedMesh） |
 | 物理 | cannon-es 0.20（3D 剛體、碰撞、休眠、接觸材質） |
-| 音效 / 音樂 | Web Audio 即時合成 + 動物死亡音效 die.mp3 |
+| 音效 / 音樂 | Web Audio 即時合成音效 + 動物死亡音效 die.mp3 + 外部背景音樂 mp3（循環，走 musicGain 可調音量） |
 | 建置 | Vite 5 |
 | 後端 | Cloudflare Pages Functions + D1（全球排行榜 / 留言板 / 統計） |
 | 模型壓縮 | gltf-transform（glTF → glb + 精簡未用動畫） |
@@ -84,12 +86,14 @@ npm run preview  # 預覽打包結果
 
 | 端點 | 用途 |
 |------|------|
-| `POST /api/score` · `GET /api/leaderboard` | 送出得分 / 排行榜（含 IP 速率限制；死鬥/快樂帶波數、飛高帶模式，皆不影響排名） |
+| `POST /api/score` · `GET /api/leaderboard` | 送出得分 / 排行榜（IP 限流 + **分數合理性檢查防灌分**；死鬥/快樂帶波數、飛高帶模式，皆不影響排名） |
 | `POST /api/heartbeat` · `GET /api/online` · `GET /api/online-history` | 在線人數心跳 / 目前人數 / 近 7 天尖峰 |
-| `GET · POST /api/messages` | 留言板（含回覆） |
+| `GET · POST /api/messages` | 留言板（含回覆、髒話過濾、版主刪除需 `ADMIN_KEY`） |
 | `GET · POST /api/totals` | 全服累計：遊玩場次 / 消滅動物數 / 遊玩秒數 |
 
 `schema.sql` 為 D1 結構（`scores` / `rate` / `presence` / `online_daily` / `messages` / `stats`）。
+
+**安全性**：所有 SQL 皆參數化綁定（無注入）、輸入 `sanitize` + 限長、留言/暱稱前端 `escapeHtml`（雙層防 XSS）、寫入端點以 Cloudflare `CF-Connecting-IP` 限流、`/api/score` 依波數做合理性上限擋灌分；`public/_headers` 設 CSP / `X-Frame-Options` / `nosniff` 等安全標頭。
 
 部署（需先 `wrangler login`）：
 
@@ -104,9 +108,11 @@ npm run deploy                           # build + 部署到 Cloudflare Pages
 - `index.html` — 頁面 + HUD + 登入頁 + 選單 + 商店/排行榜/留言板等彈窗 + 樣式
 - `fps.js` — 遊戲主程式（場景/biome、物理、關卡與波數、特殊彈、Boss、金幣、飛行特效、流程、排行榜）
 - `sfx.js` — Web Audio 音效與背景音樂
-- `functions/api/` — Cloudflare Pages Functions（排行榜 / 在線 / 留言 / 統計後端）
+- `functions/api/` — Cloudflare Pages Functions（排行榜 / 在線 / 留言 / 統計後端，`_lib.js` 為共用工具）
 - `schema.sql` — D1 資料庫結構
+- `public/_headers` — Cloudflare Pages 安全標頭（CSP 等）
 - `public/assets/` — 模型與 UI 素材（glTF/glb，皆自包含；放 public 才會打包進 dist）
+- `die.mp3` / `music.mp3` — 死亡音效 / 背景音樂
 
 ## 素材
 
