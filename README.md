@@ -3,6 +3,7 @@
 用 **three.js** 渲染、**cannon-es** 3D 物理打造的憤怒鳥風格遊戲。第一人稱瞄準、蓄力丟球，砸垮用木箱／磚牆／貨櫃／沙包搭建的堡壘，把站在上面的動物撞下來摔到地板即消滅。含全球排行榜、特殊彈藥、金幣商店、Boss 動物與多套場景。
 
 - 🎮 **線上遊玩（含全球排行榜）：** https://angry-pig.pages.dev
+- 📺 **遊玩影片（YouTube Shorts）：** https://youtube.com/shorts/E-b8A02YWT0?feature=share
 
 ![憤怒豬首頁](screenshots/home.webp)
 
