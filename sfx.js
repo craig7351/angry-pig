@@ -4,11 +4,13 @@ import musicUrl from './music.mp3'
 let ctx = null, master = null, noiseBuf = null, musicGain = null
 let dieBuf = null   // 解碼後的死亡音效 AudioBuffer
 let lastDie = 0     // 上次播放死亡音的時間（去疊音）
-let sfxVol = 0.5, musVol = 0.14   // 目前音量（設定選單可調；ctx 尚未建立時先存著，initAudio 再套用）
+let sfxVol = 1.0, musVol = 0.14   // 目前 gain（設定選單可調；ctx 尚未建立時先存著，initAudio 再套用）
 
-// 設定音量（0~1）：音效直接對應、音樂上限壓低（避免蓋過音效）
-export function setSfxVolume(v) { sfxVol = Math.max(0, Math.min(1, v)); if (master) master.gain.value = sfxVol }
-export function setMusicVolume(v) { musVol = Math.max(0, Math.min(1, v)) * 0.3; if (musicGain) musicGain.gain.value = musVol }
+// 設定音量：傳入 0~1 的滑桿比例
+//   音效 → gain 0~2（比例 ×2，讓預設 0.5 對應 gain 1.0，比舊版大聲一倍，並保留到 2.0 的餘裕）
+//   音樂 → gain 0~0.3（壓在音效之下，避免蓋過音效）
+export function setSfxVolume(frac) { sfxVol = Math.max(0, Math.min(1, frac)) * 2; if (master) master.gain.value = sfxVol }
+export function setMusicVolume(frac) { musVol = Math.max(0, Math.min(1, frac)) * 0.3; if (musicGain) musicGain.gain.value = musVol }
 
 export function initAudio() {
   if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return }
