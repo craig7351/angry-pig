@@ -1542,17 +1542,15 @@ function buildWave(n) {
   for (const x of slotsAll.slice(0, count)) {
     const h = lo + Math.floor(r() * (hi - lo + 1))
     const z = -9 - Math.floor(r() * 4)
-    const found = (boss || r() < fChance) ? (r() < 0.5 ? 'gastank' : 'barrel') : null
+    const found = (r() < fChance) ? (r() < 0.5 ? 'gastank' : 'barrel') : null   // Boss 波不再強制爆裂地基，降低連環爆風險
     buildStack(x, z, h, found, r() < hardChance)
   }
   if (happy || n >= 2) { pigColumn(-1.4, -7, 1); pigColumn(1.4, -7, 1) }   // 前排動物
   if (happy || n >= 3) for (const x of [-3.6, 3.6]) addBody(r() < 0.5 ? 'brick' : 'sack', x, -6.3, 0)  // 前排掩體
   const backRows = happy ? 5 : Math.min(Math.floor(n / 4), 3)             // 縱深後排（快樂模式更多）
   for (let i = 0; i < backRows; i++) { pigColumn((i - (backRows - 1) / 2) * 2.4, -15 - i, 2); if (happy) pigColumn((i - (backRows - 1) / 2) * 2.4 + 1.2, -15 - i, 1) }
-  if (boss) {                                                          // Boss 波：後方硬箱塔 + 前線爆裂桶 + 中央 Boss 動物
-    buildStack(0, -15, Math.min(6 + Math.floor(n / 5), 10), 'gastank', true)
-    addBody('gastank', 0, -8, 0)
-    spawnBoss(0, -11.5, n)                                             // 中央 Boss（放大、吃血量、頭上血條）
+  if (boss) {                                                          // Boss 波：中央清出空地讓 Boss 當主角
+    spawnBoss(0, -11, n)                                              // 不放中央塔/爆裂桶，避免大 Boss 生成時擠進瓦斯桶連環爆
   }
 }
 // 硬箱柱：往上疊 n 個硬箱，回傳頂高
