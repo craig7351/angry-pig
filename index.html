@@ -357,6 +357,17 @@
       box-shadow: 0 4px 16px rgba(0,0,0,.4); max-width: 88vw; text-align: center;
       opacity: 0; transition: opacity .35s ease, transform .35s ease; }
     #hint.show { opacity: 1; transform: translate(-50%, 0); }
+    /* 連殺 Combo */
+    #combo { position: fixed; left: 50%; top: 32%; transform: translate(-50%, -50%); z-index: 7;
+      pointer-events: none; text-align: center; font-weight: 900; color: #fff;
+      text-shadow: 0 3px 12px rgba(0,0,0,.55), 0 0 24px rgba(255,120,40,.7); white-space: nowrap; }
+    #combo.hidden { display: none; }
+    #combo #combo-n { font-size: clamp(48px, 12vw, 120px); line-height: 1;
+      background: linear-gradient(180deg, #ffe27a, #ff7a2f); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    #combo small { font-size: clamp(18px, 4vw, 34px); font-weight: 900; color: #ffd24a; margin-left: 4px; }
+    #combo #combo-b { display: block; font-size: clamp(16px, 3.4vw, 26px); color: #fff; margin-top: 2px; }
+    #combo.pop { animation: comboPop .2s ease-out; }
+    @keyframes comboPop { 0% { transform: translate(-50%,-50%) scale(.7); } 60% { transform: translate(-50%,-50%) scale(1.15); } 100% { transform: translate(-50%,-50%) scale(1); } }
   </style>
 </head>
 <body>
@@ -412,6 +423,9 @@
 
   <!-- 新手動態提示（僅首次遊玩） -->
   <div id="hint"></div>
+
+  <!-- 連殺 Combo -->
+  <div id="combo" class="hidden"><span id="combo-n">2</span><small> 連擊</small><span id="combo-b"></span></div>
 
   <div id="overlay">
     <div class="menu">

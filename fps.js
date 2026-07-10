@@ -468,6 +468,7 @@ function killAnimal(e) {
   const dist = Math.hypot(e.body.position.x - (e.spawnX || 0), e.body.position.z - (e.spawnZ || 0))
   const bonus = bonusFor(height, dist)
   addScore(bonus); addCoins(COIN_PER_KILL); game.pigs--; pendingKills++   // 全服消滅數 +1；死鬥每殺給固定金幣
+  registerKill()   // 連殺 Combo + 頓幀
   sfx.die()
   removeTag(e); removeTrail(e)   // 收掉跟隨計數器與拖尾
   // 死亡結算：金色大字定格上飄
@@ -1035,6 +1036,33 @@ function hintOnFire() {
   hintStep = 2; markHinted(); setTimeout(hideHint, 4000)
 }
 
+// 連殺 Combo：短時間內連續擊殺累計；跳字 + 音階上升 + 額外得分（榮耀，不給金幣）
+const COMBO_WINDOW = 1.3   // 幾秒內再擊殺才算連續
+const comboEl = document.getElementById('combo')
+const comboNEl = document.getElementById('combo-n'), comboBEl = document.getElementById('combo-b')
+function showCombo(n, bonus) {
+  if (!comboEl) return
+  comboNEl.textContent = n
+  comboBEl.textContent = '+' + bonus
+  comboEl.classList.remove('hidden')
+  comboEl.classList.remove('pop'); void comboEl.offsetWidth; comboEl.classList.add('pop')
+}
+function hideCombo() { if (comboEl) comboEl.classList.add('hidden') }
+// 每次擊殺呼叫：更新連擊、頓幀、達 2 連以上就演出
+function registerKill() {
+  hitStop = Math.max(hitStop, 0.05)              // 頓幀：每次擊殺都給一點打擊重量
+  game.combo = (game.combo || 0) + 1
+  game.comboT = 0
+  if (game.combo >= 2) {
+    const bonus = game.combo * 200
+    addScore(bonus)                              // 連擊額外得分（不影響金幣，維持經濟平衡）
+    hitStop = Math.max(hitStop, 0.045 + game.combo * 0.006)   // 連擊越高頓得越久（封頂）
+    hitStop = Math.min(hitStop, 0.11)
+    showCombo(game.combo, bonus)
+    sfx.combo(game.combo)
+  }
+}
+
 function refreshHUD() {
   if (!game) return
   hud.score.textContent = game.score
@@ -1091,6 +1119,8 @@ function clearWorld() {
   if (hud.airBonus) hud.airBonus.classList.add('hidden')
   if (hud.flyBig) hud.flyBig.classList.add('hidden')
   flyBigHold = 0
+  if (game) { game.combo = 0; game.comboT = 0 }
+  hitStop = 0; hideCombo()
 }
 
 // 從 base 高度往上疊 n 個某型積木，回傳頂部高度
@@ -2037,11 +2067,13 @@ function endIntro() {
 const clock = new THREE.Clock()
 let acc = 0
 const FIXED = 1 / 60
+let hitStop = 0   // 擊殺頓幀：>0 時整個世界凍結，只維持畫面，製造打擊重量感
 
 function loop() {
   requestAnimationFrame(loop)
   const dt = Math.min(clock.getDelta(), 0.05)
   if (game && game.paused) { renderer.render(scene, camera); return }   // 暫停：凍結物理/計時/特效，只維持畫面
+  if (hitStop > 0) { hitStop -= dt; renderer.render(scene, camera); return }   // 頓幀：短暫凍結全世界
   updateEnv(dt)
 
   if (game && !game.over) {
@@ -2064,6 +2096,8 @@ function loop() {
         camera.rotation.y = yaw; camera.rotation.x = pitch
       }
       if (game.cooldown > 0) game.cooldown -= dt
+      // 連殺視窗逾時 → 結束連擊
+      if (game.combo > 0) { game.comboT += dt; if (game.comboT > COMBO_WINDOW) { game.combo = 0; hideCombo() } }
       if (charging) {
         chargeT += dt
         const power = Math.max(0.12, Math.min(1, chargeT / CHARGE_TIME))

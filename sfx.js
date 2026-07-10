@@ -82,6 +82,12 @@ export const sfx = {
     blip({ freq: 780, type: 'sine', dur: 0.1, gain: 0.18, sweep: 1500, delay: 0.02 })
     noise({ dur: 0.12, gain: 0.25, type: 'bandpass', freq: 2200, sweep: 900 })
   },
+  // 連殺 Combo：音階隨連擊數往上疊，越多越高亢
+  combo(n = 2) {
+    const f = Math.min(1400, 440 * Math.pow(1.09, n))   // 每多一段升約一個半音、封頂
+    blip({ freq: f, type: 'triangle', dur: 0.16, gain: 0.32, sweep: f * 1.5 })
+    blip({ freq: f * 1.5, type: 'sine', dur: 0.1, gain: 0.14, delay: 0.02 })
+  },
   // 連鎖閃電：高頻爆裂
   zap() {
     blip({ freq: 1600, type: 'sawtooth', dur: 0.16, gain: 0.28, sweep: 300 })
