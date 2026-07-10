@@ -35,24 +35,25 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.toneMappingExposure = 1.08
 
 const scene = new THREE.Scene()
-{
-  // 鮮豔卡通天空：飽和藍 → 淺藍 → 地平線暖白
+// 卡通天空漸層貼圖（上→中→地平線三段），biome 換色時重建
+function makeSkyTexture(stops) {
   const c = document.createElement('canvas'); c.width = 2; c.height = 256
   const ctx = c.getContext('2d')
   const g = ctx.createLinearGradient(0, 0, 0, 256)
-  g.addColorStop(0, '#3f9fe6'); g.addColorStop(0.55, '#8fd0f2'); g.addColorStop(1, '#e9f6d6')
+  g.addColorStop(0, stops[0]); g.addColorStop(0.55, stops[1]); g.addColorStop(1, stops[2])
   ctx.fillStyle = g; ctx.fillRect(0, 0, 2, 256)
-  const skyTex = new THREE.CanvasTexture(c)
-  skyTex.colorSpace = THREE.SRGBColorSpace
-  scene.background = skyTex
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace
+  return tex
 }
+scene.background = makeSkyTexture(['#3f9fe6', '#8fd0f2', '#e9f6d6'])
 scene.fog = new THREE.Fog(0xcfeaf5, 45, 150)
 
 const camera = new THREE.PerspectiveCamera(70, 1, 0.1, 400)
 camera.rotation.order = 'YXZ'
 camera.position.copy(EYE)
 
-scene.add(new THREE.HemisphereLight(0xbfe4ff, 0x6b7a3a, 0.95))
+const hemiLight = new THREE.HemisphereLight(0xbfe4ff, 0x6b7a3a, 0.95)
+scene.add(hemiLight)
 const sun = new THREE.DirectionalLight(0xfff0d0, 2.7)
 sun.position.set(-12, 22, 8)
 sun.castShadow = true
@@ -60,29 +61,30 @@ sun.shadow.mapSize.set(IS_TOUCH ? 1024 : 2048, IS_TOUCH ? 1024 : 2048)
 sun.shadow.bias = -0.0004
 Object.assign(sun.shadow.camera, { left: -22, right: 22, top: 22, bottom: -22, near: 1, far: 80 })
 scene.add(sun)
-scene.add(new THREE.AmbientLight(0xffffff, 0.32))
+const ambLight = new THREE.AmbientLight(0xffffff, 0.32)
+scene.add(ambLight)
 
 // ============================================================
 //  環境（草地 / 泥土戰場 / 遠山 / 雲 / 樹 / 場地圍欄）
 //  全部一次性加進 scene，clearWorld 不會清掉，跨關保留
 // ============================================================
 const clouds = []   // { mesh, speed }，主迴圈裡緩慢飄移
+const env = { hills: [] }   // biome 換色用的引用（grass/dirt/hills/leafMat/trunkMat/cloudMat）
 
-// 程序草地貼圖：飽和綠 + 割草條紋 + 細噪點（卡通鮮豔）
-function makeGrassTexture() {
+// 程序地面貼圖：底色 + 割草條紋 + 細噪點（顏色由 biome 色盤決定）
+const GRASS_DEF = { base: '#57b53a', a: '#63c043', b: '#4fa833', lite: 'rgba(120,200,80,0.35)', dark: 'rgba(40,110,30,0.30)' }
+function makeGrassTexture(pal = GRASS_DEF) {
   const s = 256, c = document.createElement('canvas'); c.width = c.height = s
   const ctx = c.getContext('2d')
-  ctx.fillStyle = '#57b53a'; ctx.fillRect(0, 0, s, s)
-  // 割草條紋（明暗交替的直向色帶）
+  ctx.fillStyle = pal.base; ctx.fillRect(0, 0, s, s)
   const stripes = 4, sw = s / stripes
   for (let i = 0; i < stripes; i++) {
-    ctx.fillStyle = i % 2 ? '#63c043' : '#4fa833'
+    ctx.fillStyle = i % 2 ? pal.a : pal.b
     ctx.fillRect(i * sw, 0, sw, s)
   }
-  // 細噪點：亮綠與暗綠小點增加質感
   for (let i = 0; i < 2600; i++) {
     const x = Math.random() * s, y = Math.random() * s
-    ctx.fillStyle = Math.random() < 0.5 ? 'rgba(120,200,80,0.35)' : 'rgba(40,110,30,0.30)'
+    ctx.fillStyle = Math.random() < 0.5 ? pal.lite : pal.dark
     ctx.fillRect(x, y, 2, 2)
   }
   const tex = new THREE.CanvasTexture(c)
@@ -93,19 +95,19 @@ function makeGrassTexture() {
   return tex
 }
 
-// 程序泥土貼圖：中央實心、邊緣羽化透明，鋪在堡壘下方當戰場
-function makeDirtTexture() {
+// 程序泥土貼圖：中央實心、邊緣羽化透明（顏色由 biome 決定）
+const DIRT_DEF = { c0: '150,110,70', c1: '135,98,60', c2: '120,90,55', sp0: '90,64,40', sp1: '180,150,110' }
+function makeDirtTexture(pal = DIRT_DEF) {
   const s = 256, c = document.createElement('canvas'); c.width = c.height = s
   const ctx = c.getContext('2d')
   const g = ctx.createRadialGradient(s / 2, s / 2, s * 0.18, s / 2, s / 2, s * 0.5)
-  g.addColorStop(0, 'rgba(150,110,70,1)'); g.addColorStop(0.7, 'rgba(135,98,60,0.95)')
-  g.addColorStop(1, 'rgba(120,90,55,0)')
+  g.addColorStop(0, `rgba(${pal.c0},1)`); g.addColorStop(0.7, `rgba(${pal.c1},0.95)`)
+  g.addColorStop(1, `rgba(${pal.c2},0)`)
   ctx.fillStyle = g; ctx.fillRect(0, 0, s, s)
-  // 碎石與土色斑點
   for (let i = 0; i < 900; i++) {
     const a = Math.random() * Math.PI * 2, r = Math.random() * s * 0.46
     const x = s / 2 + Math.cos(a) * r, y = s / 2 + Math.sin(a) * r
-    ctx.fillStyle = Math.random() < 0.5 ? 'rgba(90,64,40,0.5)' : 'rgba(180,150,110,0.45)'
+    ctx.fillStyle = Math.random() < 0.5 ? `rgba(${pal.sp0},0.5)` : `rgba(${pal.sp1},0.45)`
     const d = 1 + Math.random() * 2.5; ctx.fillRect(x, y, d, d)
   }
   const tex = new THREE.CanvasTexture(c)
@@ -154,6 +156,7 @@ function buildEnvironment() {
   grass.rotation.x = -Math.PI / 2
   grass.receiveShadow = true
   scene.add(grass)
+  env.grass = grass
 
   // --- 堡壘下方泥土戰場 ---
   const dirt = new THREE.Mesh(
@@ -164,6 +167,7 @@ function buildEnvironment() {
   dirt.position.set(0, 0.02, -10.5)
   dirt.receiveShadow = true
   scene.add(dirt)
+  env.dirt = dirt
 
   // --- 遠景低多邊形山丘（環繞地平線，融入霧氣）---
   const hillGeo = new THREE.IcosahedronGeometry(1, 0)
@@ -177,10 +181,12 @@ function buildEnvironment() {
     hill.scale.set(r, r * (0.45 + (i % 3) * 0.12), r)
     hill.position.set(Math.cos(a) * dist, -r * 0.55, -8 + Math.sin(a) * dist)
     scene.add(hill)
+    env.hills.push(hill)
   }
 
   // --- 蓬鬆雲朵（多顆白球群，主迴圈裡飄移）---
   const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.92, fog: true })
+  env.cloudMat = cloudMat
   const puffGeo = new THREE.SphereGeometry(1, 10, 8)
   for (let i = 0; i < 8; i++) {
     const g = new THREE.Group()
@@ -223,6 +229,7 @@ function buildEnvironment() {
   trunkMesh.instanceMatrix.needsUpdate = leafMesh.instanceMatrix.needsUpdate = true
   trunkMesh.frustumCulled = leafMesh.frustumCulled = false
   scene.add(trunkMesh, leafMesh)
+  env.leafMat = leafMesh.material; env.trunkMat = trunkMesh.material
 
   // --- 場地圍欄（左 / 右 / 後三面，正面留給玩家）+ 交通錐點綴 ---
   fenceLine(-12, 7, -12, -19)
@@ -231,6 +238,54 @@ function buildEnvironment() {
   placeProp('barrier', -11.5, 6.5, 0, 1.0)
   placeProp('barrier', 11.5, 6.5, 0, 1.0)
   for (const [cx, cz] of [[-8, 6.5], [-4, 7.2], [4, 7.2], [8, 6.5]]) placeProp('cone', cx, cz, Math.random() * Math.PI, 0.7)
+}
+
+// ============================================================
+//  Biome 場景換膚：一次換掉天空/霧/光/地/山/樹/雲整組色盤（幾何不動）
+// ============================================================
+const BIOMES = [
+  { name: '🌿 草原',
+    sky: ['#3f9fe6', '#8fd0f2', '#e9f6d6'], fog: 0xcfeaf5,
+    hemi: [0xbfe4ff, 0x6b7a3a, 0.95], sun: [0xfff0d0, 2.7, [-12, 22, 8]], amb: [0xffffff, 0.32],
+    grass: { base: '#57b53a', a: '#63c043', b: '#4fa833', lite: 'rgba(120,200,80,0.35)', dark: 'rgba(40,110,30,0.30)' },
+    dirt: { c0: '150,110,70', c1: '135,98,60', c2: '120,90,55', sp0: '90,64,40', sp1: '180,150,110' },
+    hills: [0x4e9e38, 0x5aac42, 0x459132, 0x66b84c], leaf: 0x4fa838, trunk: 0x6e4a2a, cloud: [0xffffff, 0.92] },
+  { name: '🌅 黃昏沙漠',
+    sky: ['#ff7e3d', '#ffb066', '#ffe3b0'], fog: 0xf0b878,
+    hemi: [0xffd0a0, 0x7a5636, 0.92], sun: [0xffa050, 2.6, [16, 13, 9]], amb: [0xffe0c0, 0.36],
+    grass: { base: '#d8ac63', a: '#e2b972', b: '#cba055', lite: 'rgba(240,220,150,0.35)', dark: 'rgba(150,110,60,0.30)' },
+    dirt: { c0: '170,125,75', c1: '150,108,62', c2: '135,95,55', sp0: '110,78,44', sp1: '210,180,120' },
+    hills: [0xc79a5a, 0xb98a4a, 0xd4a866, 0xa87a3e], leaf: 0x9c7a3e, trunk: 0x6e4a2a, cloud: [0xffd9a0, 0.82] },
+  { name: '❄️ 雪地',
+    sky: ['#8fb8e0', '#cfe4f5', '#eef6fb'], fog: 0xdfeaf2,
+    hemi: [0xdfeeff, 0x9aa8b0, 1.0], sun: [0xeaf2ff, 2.4, [-10, 20, 8]], amb: [0xffffff, 0.42],
+    grass: { base: '#e6edf2', a: '#f2f6f9', b: '#d7e1e9', lite: 'rgba(255,255,255,0.5)', dark: 'rgba(175,190,205,0.3)' },
+    dirt: { c0: '205,212,218', c1: '188,197,206', c2: '172,183,194', sp0: '150,162,175', sp1: '235,240,245' },
+    hills: [0xcdd9e2, 0xdbe6ee, 0xbccad6, 0xe6eef4], leaf: 0xdfe9f0, trunk: 0x5a4636, cloud: [0xf2f6fb, 0.9] },
+  { name: '🌃 夜晚霓虹',
+    sky: ['#0b1030', '#1a2350', '#33406e'], fog: 0x1a2246,
+    hemi: [0x6070b0, 0x24283e, 0.72], sun: [0x9fb0ff, 1.5, [-8, 18, 6]], amb: [0x9aa8d8, 0.5],
+    grass: { base: '#243a2e', a: '#2b4838', b: '#1e3227', lite: 'rgba(90,230,180,0.22)', dark: 'rgba(10,28,20,0.4)' },
+    dirt: { c0: '46,56,78', c1: '38,46,66', c2: '30,38,56', sp0: '20,26,40', sp1: '80,200,170' },
+    hills: [0x223055, 0x2a3a66, 0x1c2848, 0x30407a], leaf: 0x2f6d55, trunk: 0x2a2436, cloud: [0x3a4680, 0.5] },
+]
+let currentBiome = -1
+function applyBiome(i) {
+  const idx = ((i % BIOMES.length) + BIOMES.length) % BIOMES.length
+  if (idx === currentBiome) return
+  currentBiome = idx
+  const b = BIOMES[idx]
+  const old = scene.background; scene.background = makeSkyTexture(b.sky); if (old && old.dispose) old.dispose()
+  scene.fog.color.set(b.fog)
+  hemiLight.color.set(b.hemi[0]); hemiLight.groundColor.set(b.hemi[1]); hemiLight.intensity = b.hemi[2]
+  sun.color.set(b.sun[0]); sun.intensity = b.sun[1]; sun.position.set(b.sun[2][0], b.sun[2][1], b.sun[2][2])
+  ambLight.color.set(b.amb[0]); ambLight.intensity = b.amb[1]
+  if (env.grass) { env.grass.material.map.dispose(); env.grass.material.map = makeGrassTexture(b.grass); env.grass.material.needsUpdate = true }
+  if (env.dirt) { env.dirt.material.map.dispose(); env.dirt.material.map = makeDirtTexture(b.dirt); env.dirt.material.needsUpdate = true }
+  env.hills.forEach((h, k) => h.material.color.set(b.hills[k % b.hills.length]))
+  if (env.leafMat) env.leafMat.color.set(b.leaf)
+  if (env.trunkMat) env.trunkMat.color.set(b.trunk)
+  if (env.cloudMat) { env.cloudMat.color.set(b.cloud[0]); env.cloudMat.opacity = b.cloud[1] }
 }
 
 // 主迴圈呼叫：雲朵緩慢橫向飄移，超出範圍就繞回
@@ -377,14 +432,15 @@ function measureAnimatedBounds(holder, clip) {
 }
 
 // 正規化模型：套朝向→量測 footprint→置中；回傳 wrap 與半尺寸
-function makeVisual(type) {
+function makeVisual(type, scaleMul = 1, tint = null) {
   const cfg = TYPE[type]
   const proto = protos[type]
   const inst = (isAnimal(type) || cfg.skinned) ? skeletonClone(proto) : proto.clone(true)
-  // 色調（如硬箱）：複製材質後乘上 tint，讓外觀與一般木箱區別
-  if (cfg.tint) inst.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.color = new THREE.Color(cfg.tint) } })
+  // 色調（硬箱 / Boss）：複製材質後乘上 tint
+  const tintColor = tint != null ? tint : cfg.tint
+  if (tintColor) inst.traverse((o) => { if (o.isMesh) { o.material = o.material.clone(); o.material.color = new THREE.Color(tintColor) } })
   const raw = measure(proto)
-  const scale = cfg.scale != null ? cfg.scale : cfg.targetH / (raw.size.y || 1)
+  const scale = (cfg.scale != null ? cfg.scale : cfg.targetH / (raw.size.y || 1)) * scaleMul
   const holder = new THREE.Group()
   holder.add(inst); holder.scale.setScalar(scale)
   if (cfg.faceRotateY) holder.rotation.y = cfg.faceRotateY
@@ -402,19 +458,21 @@ function makeVisual(type) {
 const entities = []   // { body, group, type, hp, mixer?, dead?, popping? }
 
 // 放置一個物體，x/z 為中心水平座標，bottomY 為底部高度；回傳頂部 Y
-function addBody(type, x, z, bottomY) {
+// opts: { scaleMul, mass, hp, boss, tint } —— 供 Boss 動物放大 / 加血 / 上色
+function addBody(type, x, z, bottomY, opts = {}) {
   const cfg = TYPE[type]
-  const { wrap, hx, hy, hz } = makeVisual(type)
+  const { wrap, hx, hy, hz } = makeVisual(type, opts.scaleMul || 1, opts.tint)
   const cy = bottomY + hy
   let shape
   if (cfg.sphere) shape = new CANNON.Sphere(Math.max(hx, hz))
   else shape = new CANNON.Box(new CANNON.Vec3(hx, hy, hz))
-  const body = new CANNON.Body({ mass: cfg.mass, material: cfg.mat, shape })
+  const body = new CANNON.Body({ mass: opts.mass != null ? opts.mass : cfg.mass, material: cfg.mat, shape })
   body.position.set(x, cy, z)
   body.allowSleep = true; body.sleepSpeedLimit = 0.4; body.sleepTimeLimit = 0.6
   world.addBody(body)
   scene.add(wrap)
-  const ent = { body, group: wrap, type, hp: isAnimal(type) ? 100 : (cfg.explosive ? 45 : 1e9) }
+  const ent = { body, group: wrap, type, hp: opts.hp != null ? opts.hp : (isAnimal(type) ? 100 : (cfg.explosive ? 45 : 1e9)) }
+  if (opts.boss) ent.boss = true
   if (isAnimal(type)) {
     // 記錄起始位置與飛行最高點，供加分與飛行特效使用
     ent.startY = cy; ent.maxY = cy; ent.spawnX = x; ent.spawnZ = z; ent.hy = hy
@@ -426,6 +484,14 @@ function addBody(type, x, z, bottomY) {
     ent.mixer.clipAction(idle).play()
   }
   body._ent = ent
+  // Boss：撞擊扣血（球直擊 / 被震飛後撞地都算），歸零即擊破
+  if (opts.boss) {
+    body.addEventListener('collide', (e) => {
+      if (ent.dead || !game || !game.armed) return
+      const v = Math.abs(e.contact.getImpactVelocityAlongNormal())
+      if (v > 5) { ent.hp -= v * 5; drawBossBar(ent); if (ent.hp <= 0) defeatBoss(ent) }
+    })
+  }
   // 爆裂物（桶 / 瓦斯桶）：受到夠強的撞擊就引爆（豬的死亡改由落地高度判定）
   if (cfg.explosive) {
     body.addEventListener('collide', (e) => {
@@ -444,6 +510,60 @@ function addBody(type, x, z, bottomY) {
   }
   entities.push(ent)
   return cy + hy
+}
+
+// ============================================================
+//  Boss 動物：放大版動物、吃血量、頭上血條、擊破大爆炸
+// ============================================================
+const BOSS_BASES = ['wolf', 'horse', 'pig']
+function spawnBoss(x, z, wave) {
+  const base = BOSS_BASES[(Math.max(1, Math.floor(wave / 5)) - 1) % BOSS_BASES.length]
+  const hp = 250 + wave * 30
+  addBody(base, x, z, 0, { scaleMul: 2.3, mass: 12, hp, boss: true, tint: 0xff5a4a })
+  const e = entities[entities.length - 1]   // addBody 回傳頂端高度而非 entity，取剛推入的那筆
+  e.hpMax = hp
+  makeBossBar(e)
+  return e
+}
+function makeBossBar(e) {
+  const cv = document.createElement('canvas'); cv.width = 160; cv.height = 24
+  const tex = new THREE.CanvasTexture(cv)
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }))
+  sp.scale.set(3.4, 0.5, 1); sp.renderOrder = 998
+  scene.add(sp)
+  e.bossBar = { sp, cv, tex }
+  drawBossBar(e)
+}
+function drawBossBar(e) {
+  if (!e.bossBar) return
+  const { cv, tex } = e.bossBar
+  const ctx = cv.getContext('2d')
+  const r = Math.max(0, Math.min(1, e.hp / (e.hpMax || 1)))
+  ctx.clearRect(0, 0, 160, 24)
+  ctx.fillStyle = 'rgba(0,0,0,.62)'; ctx.fillRect(0, 0, 160, 24)
+  ctx.fillStyle = r > 0.5 ? '#5be36b' : r > 0.25 ? '#ffd24a' : '#e0533b'
+  ctx.fillRect(3, 3, (160 - 6) * r, 18)
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 15px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText('👑 BOSS', 80, 13)
+  tex.needsUpdate = true
+}
+function removeBossBar(e) {
+  if (!e.bossBar) return
+  scene.remove(e.bossBar.sp)
+  e.bossBar.sp.material.map.dispose(); e.bossBar.sp.material.dispose()
+  e.bossBar = null
+}
+function defeatBoss(e) {
+  if (e.dead) return
+  const p = e.body.position
+  explode(new CANNON.Vec3(p.x, p.y, p.z), 5)   // 大爆炸
+  addShake(0.9); sfx.summon()
+  const bonus = 5000 + game.wave * 800
+  addScore(bonus); addCoins(1000 + game.wave * 150)   // Boss：大量得分 + 一筆可觀金幣
+  spawnFloater(p, (e.hy || 1) + 1.6, '👑 BOSS 擊破！',
+    { fill: '#ffd63a', size: 96, life: 1.7, rise: 1.3, grow: 0.5, worldScale: 3.0 })
+  removeBossBar(e)
+  killAnimal(e)   // 標記死亡 + 一般清理（剩餘動物 -1、combo、死亡音）
 }
 
 // ============================================================
@@ -912,6 +1032,12 @@ function throwSpecial(kind, power) {
   sfx.throw()
 }
 function hasUsableSelected() { return !!(game && game.selected && game.specials && game.specials[game.selected]) }
+// 是否還有任何可用特殊彈（快樂為 Infinity 亦算）→ 普通彈用盡時不該立刻判負
+function hasAnySpecial() {
+  if (!game || !game.specials) return false
+  for (const k in game.specials) if (game.specials[k] > 0) return true
+  return false
+}
 function selectSpecial(key) {
   if (!game || !game.endless || game.over || game.paused || !game.specials) return
   if (!game.specials[key]) return   // 未裝備或已用完
@@ -1107,7 +1233,7 @@ function updateFlyBig(dt) {
 }
 
 function clearWorld() {
-  for (const e of entities) { world.removeBody(e.body); scene.remove(e.group); removeTag(e) }
+  for (const e of entities) { world.removeBody(e.body); scene.remove(e.group); removeTag(e); removeBossBar(e) }
   entities.length = 0; balls.length = 0
   flashes.forEach((f) => scene.remove(f.mesh)); flashes.length = 0
   scorches.forEach((s) => scene.remove(s.mesh)); scorches.length = 0
@@ -1323,6 +1449,7 @@ const LEVELS = [
 function resetGame(idx) {
   hideHint()
   currentLevel = Math.max(0, Math.min(LEVELS.length - 1, idx))
+  applyBiome(Math.floor(currentLevel / 4))   // 故事關依關卡分組換景（1–4🌿 5–8🌅 9–12❄️ 13–15🌃）
   clearWorld()
   const L = LEVELS[currentLevel]
   game = { score: 0, ammo: L.ammo, ammoStart: L.ammo, pigs: 0, over: false, cooldown: 0, emptyT: 0, startT: 0, armed: false, intro: true, introT: 0, winDelay: 0, maxFly: 0 }
@@ -1422,9 +1549,10 @@ function buildWave(n) {
   if (happy || n >= 3) for (const x of [-3.6, 3.6]) addBody(r() < 0.5 ? 'brick' : 'sack', x, -6.3, 0)  // 前排掩體
   const backRows = happy ? 5 : Math.min(Math.floor(n / 4), 3)             // 縱深後排（快樂模式更多）
   for (let i = 0; i < backRows; i++) { pigColumn((i - (backRows - 1) / 2) * 2.4, -15 - i, 2); if (happy) pigColumn((i - (backRows - 1) / 2) * 2.4 + 1.2, -15 - i, 1) }
-  if (boss) {                                                          // Boss：中央超高硬箱塔 + 中央前線爆裂桶
-    buildStack(0, -14, Math.min(6 + Math.floor(n / 5), 10), 'gastank', true)
+  if (boss) {                                                          // Boss 波：後方硬箱塔 + 前線爆裂桶 + 中央 Boss 動物
+    buildStack(0, -15, Math.min(6 + Math.floor(n / 5), 10), 'gastank', true)
     addBody('gastank', 0, -8, 0)
+    spawnBoss(0, -11.5, n)                                             // 中央 Boss（放大、吃血量、頭上血條）
   }
 }
 // 硬箱柱：往上疊 n 個硬箱，回傳頂高
@@ -1460,6 +1588,7 @@ function startEndless(happy = false) {
 function nextWave() {
   clearWorld()
   game.wave++
+  applyBiome(Math.floor((game.wave - 1) / 5))   // 死鬥/快樂每 5 波循環換景
   animIdx = game.wave * 3
   buildWave(game.wave)
   const animals = entities.filter((e) => isAnimal(e.type)).length
@@ -2111,13 +2240,16 @@ function loop() {
       // 豬落地判定：中心高度掉到接近地面就算死
       if (game.armed) {
         for (const e of entities) {
-          if (isAnimal(e.type) && !e.dead && e.body.position.y < (e.hy || 0.5) + GROUND_MARGIN) killAnimal(e)
+          if (isAnimal(e.type) && !e.boss && !e.dead && e.body.position.y < (e.hy || 0.5) + GROUND_MARGIN) killAnimal(e)   // Boss 免疫落地判定，只吃血量
         }
       }
       // 彈藥用盡且場面靜止 → 判負（死鬥模式則結算死鬥成績）
-      if (game.ammo <= 0 && game.pigs > 0) {
+      // 還有特殊彈可用時不判負：玩家仍能靠特殊彈清場
+      if (game.ammo <= 0 && !hasAnySpecial() && game.pigs > 0) {
         game.emptyT += dt
         if (game.emptyT > 4) (game.endless ? endEndless() : lose())
+      } else {
+        game.emptyT = 0
       }
     }
   }
@@ -2130,6 +2262,7 @@ function loop() {
     e.group.position.copy(e.body.position)
     e.group.quaternion.copy(e.body.quaternion)
     if (e.mixer) e.mixer.update(dt)
+    if (e.bossBar) { const p = e.body.position; e.bossBar.sp.position.set(p.x, p.y + (e.hy || 1) + 1.1, p.z); e.bossBar.sp.visible = !e.dead }
     if (!e.dead && e.maxY !== undefined && e.body.position.y > e.maxY) e.maxY = e.body.position.y  // 追蹤飛行最高點
     if (game && !e.dead && e.startY !== undefined) { const fh = e.body.position.y - e.startY; if (fh > game.maxFly) game.maxFly = fh }   // 全場最高飛行
     // 飛行特效：被擊飛的動物 → 跟隨計數器 + 拖尾 + 里程碑爆字
@@ -2356,6 +2489,7 @@ if (window.visualViewport) window.visualViewport.addEventListener('resize', resi
 
 loadAll().then(() => {
   buildEnvironment()
+  applyBiome(0)   // 初始草原
   resize()
   camera.rotation.set(pitch, yaw, 0)
   buildLevelSelect()
