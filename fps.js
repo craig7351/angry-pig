@@ -2089,7 +2089,9 @@ function syncSettingsUI() {
   setFov.value = settings.fov; setFovV.textContent = settings.fov + '°'
   setShakeBtn.textContent = settings.shake ? '開' : '關'; setShakeBtn.classList.toggle('on', settings.shake)
 }
-document.getElementById('settings-btn-landing').addEventListener('click', () => { syncSettingsUI(); settingsModal.classList.remove('hidden') })
+function openSettings() { syncSettingsUI(); settingsModal.classList.remove('hidden') }
+document.getElementById('settings-btn-landing').addEventListener('click', openSettings)
+document.getElementById('settings-btn-pause').addEventListener('click', openSettings)   // 暫停中也能調參數
 setSens.addEventListener('input', () => { settings.sens = +setSens.value; setSensV.textContent = settings.sens.toFixed(1) + '×'; saveSettings() })
 setSfx.addEventListener('input', () => { settings.sfxVol = +setSfx.value; setSfxV.textContent = settings.sfxVol + '%'; setSfxVolume(settings.sfxVol / 100); saveSettings() })
 setMus.addEventListener('input', () => { settings.musVol = +setMus.value; setMusV.textContent = settings.musVol + '%'; setMusicVolume(settings.musVol / 100); saveSettings() })

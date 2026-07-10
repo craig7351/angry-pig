@@ -100,20 +100,21 @@
       text-shadow: 0 2px 8px rgba(0,0,0,.6); }
 
     /* 全螢幕即時飛行高度大字 */
+    /* 即時最高飛行：半透明浮水印、縮小、置於中下方，避免蓋住飛行動物與 combo */
     #fly-big {
       position: fixed; inset: 0; z-index: 6; pointer-events: none;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      gap: 4px; color: #fff; text-align: center;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+      padding-top: 42vh; gap: 2px; text-align: center;
     }
     #fly-big.hidden { display: none; }
-    #fly-big .fb-cap { font-size: clamp(16px, 3vw, 30px); font-weight: 800; letter-spacing: 6px;
-      color: #ffe27a; text-shadow: 0 2px 10px rgba(0,0,0,.6); opacity: .95; }
-    #fly-big .fb-num { font-size: clamp(72px, 22vw, 240px); font-weight: 900; line-height: 1;
-      color: #fff; text-shadow: 0 6px 26px rgba(0,0,0,.55), 0 0 40px rgba(110,231,255,.5);
-      font-variant-numeric: tabular-nums; }
-    #fly-big .fb-unit { font-size: .4em; font-weight: 800; margin-left: .12em; color: #9fe6ff; }
+    #fly-big .fb-cap { font-size: clamp(13px, 2.2vw, 22px); font-weight: 800; letter-spacing: 5px;
+      color: rgba(255,226,122,.72); text-shadow: 0 2px 8px rgba(0,0,0,.5); }
+    #fly-big .fb-num { font-size: clamp(56px, 14vw, 140px); font-weight: 900; line-height: 1;
+      color: rgba(255,255,255,.5); -webkit-text-stroke: 1.5px rgba(0,0,0,.16);
+      text-shadow: 0 4px 16px rgba(0,0,0,.32); font-variant-numeric: tabular-nums; }
+    #fly-big .fb-unit { font-size: .4em; font-weight: 800; margin-left: .12em; color: rgba(159,230,255,.62); -webkit-text-stroke: 0; }
     #fly-big.pop { animation: fbPop .18s ease-out; }
-    @keyframes fbPop { 0% { transform: scale(1); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
+    @keyframes fbPop { 0% { transform: scale(1); } 50% { transform: scale(1.06); } 100% { transform: scale(1); } }
 
     /* 開始 / 結束 覆蓋 */
     #overlay, #msg, #pause {
@@ -413,6 +414,7 @@
       <p id="pause-text"></p>
       <div class="btnrow">
         <button id="resume-btn">▶ 繼續</button>
+        <button id="settings-btn-pause" class="ghost">⚙️ 設定</button>
         <button id="end-btn" class="ghost">☠️ 結束死鬥</button>
       </div>
     </div>
