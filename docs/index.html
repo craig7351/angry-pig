@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>憤怒豬 Angry Pig — 第一人稱 3D 物理破壞遊戲</title>
+<meta name="description" content="用 three.js + cannon-es 打造的憤怒鳥風格第一人稱物理破壞遊戲。蓄力丟球砸垮堡壘、把動物轟上天，含死鬥/快樂模式、8 種特殊彈、金幣商店、Boss、四種場景與全球排行榜。">
+<meta property="og:title" content="憤怒豬 Angry Pig — 3D 物理破壞遊戲">
+<meta property="og:description" content="蓄力丟球砸垮堡壘、把動物轟上天！死鬥經濟、特殊彈、Boss、四種場景、全球排行榜。">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://craig7351.github.io/angry-pig/img/home.webp">
+<meta property="og:url" content="https://craig7351.github.io/angry-pig/">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐷</text></svg>">
+<style>
+  :root {
+    --ink: #5a3d1e; --ink-soft: #8a6a44; --accent: #e0533b; --accent2: #f4b93a;
+    --card: #fdf6e3; --card-line: #e6d4a8; --wood: #a86a34;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+    color: var(--ink); line-height: 1.6; overflow-x: hidden;
+    background: linear-gradient(180deg, #3f9fe6 0%, #8fd0f2 42%, #cfeecb 100%) fixed;
+  }
+  a { color: inherit; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+  section { padding: 56px 0; }
+  h2 { font-size: clamp(26px, 5vw, 40px); font-weight: 900; text-align: center; margin-bottom: 8px;
+    color: #fff; text-shadow: 0 3px 0 rgba(0,0,0,.18), 0 6px 16px rgba(0,0,0,.25); }
+  .sub { text-align: center; color: #fff; opacity: .92; margin-bottom: 34px; font-weight: 600;
+    text-shadow: 0 2px 6px rgba(0,0,0,.25); }
+
+  /* Hero */
+  .hero { text-align: center; padding: 68px 0 40px; }
+  .hero .emoji { font-size: clamp(64px, 14vw, 120px); line-height: 1; filter: drop-shadow(0 8px 14px rgba(0,0,0,.3)); }
+  .hero h1 { font-size: clamp(44px, 11vw, 108px); font-weight: 900; letter-spacing: 2px; color: #fff;
+    text-shadow: 0 4px 0 var(--wood), 0 8px 0 rgba(0,0,0,.15), 0 16px 30px rgba(0,0,0,.35); margin: 6px 0 2px; }
+  .hero .tag { font-size: clamp(15px, 3.4vw, 22px); font-weight: 800; color: #fff;
+    background: var(--accent); display: inline-block; padding: 6px 20px; border-radius: 999px;
+    box-shadow: 0 6px 0 #b23a26, 0 10px 20px rgba(0,0,0,.25); margin-top: 8px; }
+  .cta { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin: 30px 0 8px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 800;
+    padding: 14px 28px; border-radius: 14px; text-decoration: none; transition: transform .12s, box-shadow .12s; }
+  .btn:hover { transform: translateY(-2px); }
+  .btn-play { background: linear-gradient(180deg, #ff7a45, #e0533b); color: #fff; box-shadow: 0 6px 0 #b23a26, 0 12px 24px rgba(0,0,0,.3); }
+  .btn-play:hover { box-shadow: 0 8px 0 #b23a26, 0 16px 30px rgba(0,0,0,.35); }
+  .btn-ghost { background: #fff; color: var(--accent); box-shadow: 0 6px 0 #d9c8a0, 0 12px 22px rgba(0,0,0,.2); }
+  .hero-shot { max-width: 900px; width: 100%; margin: 26px auto 0; border-radius: 18px;
+    border: 5px solid #fff; box-shadow: 0 20px 50px rgba(0,0,0,.4); display: block; }
+
+  /* Cards */
+  .grid { display: grid; gap: 18px; }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g2 { grid-template-columns: repeat(2, 1fr); }
+  .card { background: var(--card); border: 2px solid var(--card-line); border-radius: 18px; padding: 22px 20px;
+    box-shadow: 0 10px 24px rgba(0,0,0,.18); }
+  .card .ico { font-size: 40px; line-height: 1; }
+  .card h3 { font-size: 19px; font-weight: 900; margin: 10px 0 4px; color: var(--ink); }
+  .card p { font-size: 14.5px; color: var(--ink-soft); }
+  .mode { text-align: center; }
+
+  /* Specials */
+  .sp { display: flex; align-items: center; gap: 12px; }
+  .sp .e { font-size: 30px; flex: 0 0 40px; text-align: center; }
+  .sp b { display: block; font-size: 16px; }
+  .sp span { font-size: 13.5px; color: var(--ink-soft); }
+
+  /* Gallery */
+  .shots { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .shots img { width: 100%; border-radius: 14px; border: 4px solid #fff; box-shadow: 0 12px 28px rgba(0,0,0,.3); display: block; }
+  .biome-cap { text-align: center; font-weight: 800; color: var(--ink); margin-bottom: 6px; }
+
+  /* Footer */
+  footer { background: rgba(74,45,20,.9); color: #f5e6c8; text-align: center; padding: 40px 20px 48px; }
+  footer .tech { max-width: 720px; margin: 0 auto 20px; font-size: 14px; opacity: .9; }
+  footer .chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 24px; }
+  footer .chip { background: rgba(255,255,255,.12); padding: 5px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; }
+  footer a.btn { font-size: 16px; padding: 12px 24px; }
+
+  @media (max-width: 860px) { .g4 { grid-template-columns: repeat(2, 1fr); } .g3 { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .g4, .g3, .g2, .shots { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+  <header class="hero wrap">
+    <div class="emoji">🐷</div>
+    <h1>憤怒豬</h1>
+    <div class="tag">第一人稱 3D 物理破壞冒險</div>
+    <p class="sub" style="margin-top:18px;max-width:620px;margin-left:auto;margin-right:auto;">
+      蓄力丟球，砸垮木箱磚牆搭成的堡壘，把站在上面的動物轟飛上天！<br>
+      three.js + cannon-es 打造的憤怒鳥風格破壞遊戲，開瀏覽器即玩。
+    </p>
+    <div class="cta">
+      <a class="btn btn-play" href="https://angry-pig.pages.dev" target="_blank" rel="noopener">▶ 立即遊玩</a>
+      <a class="btn btn-ghost" href="https://youtube.com/shorts/E-b8A02YWT0?feature=share" target="_blank" rel="noopener">📺 遊玩影片</a>
+      <a class="btn btn-ghost" href="https://github.com/craig7351/angry-pig" target="_blank" rel="noopener">⭐ GitHub</a>
+    </div>
+    <img class="hero-shot" src="img/home.webp" alt="憤怒豬遊戲首頁" loading="lazy">
+  </header>
+
+  <section class="wrap">
+    <h2>四種玩法</h2>
+    <p class="sub">從闖關到無盡生存，想怎麼炸就怎麼炸</p>
+    <div class="grid g4">
+      <div class="card mode"><div class="ico">🏰</div><h3>故事關卡</h3><p>15 關遞增難度，依剩餘彈藥給 1~3 星，逐關解鎖。</p></div>
+      <div class="card mode"><div class="ico">☠️</div><h3>死鬥模式</h3><p>無盡波數 + 金幣經濟，每 10 波補給商店、每 5 波出 Boss。</p></div>
+      <div class="card mode"><div class="ico">😄</div><h3>快樂模式</h3><p>所有特殊彈無限、怪物成群，純粹炸得爽。</p></div>
+      <div class="card mode"><div class="ico">🚀</div><h3>飛最高</h3><p>記錄把動物打飛的最高高度，獨立全球排行榜。</p></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <h2>遊戲特色</h2>
+    <p class="sub">物理破壞的爽度，全都幫你做滿</p>
+    <div class="grid g3">
+      <div class="card"><div class="ico">🎯</div><h3>空中狙擊</h3><p>先把動物打飛，趁牠在空中用第二發命中 → 賞金 +1000！</p></div>
+      <div class="card"><div class="ico">🔥</div><h3>連殺 Combo</h3><p>短時間連續擊殺累計連擊，跳字 + 音階上升 + 額外得分。</p></div>
+      <div class="card"><div class="ico">💥</div><h3>擊殺頓幀</h3><p>Hit-stop 瞬間凍結畫面，強化每一擊的打擊重量感。</p></div>
+      <div class="card"><div class="ico">💰</div><h3>金幣經濟</h3><p>死鬥擊殺賺金幣，每 10 波進補給站花錢補特殊彈。</p></div>
+      <div class="card"><div class="ico">👑</div><h3>Boss 動物</h3><p>每 5 波登場的巨大 Boss，吃血量、有血條，擊破大爆炸。</p></div>
+      <div class="card"><div class="ico">🌦️</div><h3>四種場景</h3><p>草原 / 黃昏沙漠 / 雪地 / 夜晚霓虹，隨波數循環換景。</p></div>
+      <div class="card"><div class="ico">🏆</div><h3>全球排行榜</h3><p>成績即時上傳，含防灌分機制；還有留言板與線上人數。</p></div>
+      <div class="card"><div class="ico">⚙️</div><h3>可調設定</h3><p>靈敏度 / 音量 / 視野 FOV / 畫面震動，隨時調、記在本機。</p></div>
+      <div class="card"><div class="ico">📱</div><h3>手機也能玩</h3><p>虛擬搖桿 + 發射鈕，觸控裝置自動降負載順順跑。</p></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <h2>8 種特殊彈藥</h2>
+    <p class="sub">死鬥與快樂模式專屬，各有不同破壞方式</p>
+    <div class="grid g2">
+      <div class="card sp"><div class="e">💣</div><div><b>炸彈</b><span>命中即爆炸，掀翻周圍一整片</span></div></div>
+      <div class="card sp"><div class="e">🎯</div><div><b>一分多</b><span>飛行中分裂成多顆霰彈掃射</span></div></div>
+      <div class="card sp"><div class="e">🐖</div><div><b>召喚豬</b><span>召喚巨大豬往準星衝，撞倒一切</span></div></div>
+      <div class="card sp"><div class="e">🕳️</div><div><b>黑洞彈</b><span>把周圍吸向中心再內爆</span></div></div>
+      <div class="card sp"><div class="e">⚡</div><div><b>連鎖閃電</b><span>天降閃電連鎖電擊一排動物</span></div></div>
+      <div class="card sp"><div class="e">🎳</div><div><b>鐵球</b><span>超重鐵球直接輾穿整座堡壘</span></div></div>
+      <div class="card sp"><div class="e">🌪️</div><div><b>龍捲風</b><span>生成龍捲把東西往上捲飛旋轉</span></div></div>
+      <div class="card sp"><div class="e">💥</div><div><b>集束炸彈</b><span>空中散成多顆小炸彈連環爆</span></div></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <h2>遊戲畫面</h2>
+    <p class="sub">四種場景 × 破壞現場</p>
+    <div class="shots">
+      <div><div class="biome-cap">🌿 草原 · 即時 HUD</div><img src="img/gameplay.webp" alt="草原遊戲畫面" loading="lazy"></div>
+      <div><div class="biome-cap">🌅 黃昏沙漠</div><img src="img/biome-desert.webp" alt="黃昏沙漠" loading="lazy"></div>
+      <div><div class="biome-cap">❄️ 雪地 · Boss 與連擊</div><img src="img/boss.webp" alt="雪地 Boss" loading="lazy"></div>
+      <div><div class="biome-cap">🌃 夜晚霓虹</div><img src="img/biome-night.webp" alt="夜晚霓虹" loading="lazy"></div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="tech">
+      用 <b>three.js</b>（渲染）+ <b>cannon-es</b>（3D 物理）打造，<b>Vite</b> 建置，
+      部署於 <b>Cloudflare Pages</b>，全球排行榜 / 留言板 / 統計由 <b>Pages Functions + D1</b> 提供。
+    </div>
+    <div class="chips">
+      <span class="chip">three.js</span><span class="chip">cannon-es</span><span class="chip">Vite</span>
+      <span class="chip">Cloudflare Pages</span><span class="chip">D1</span><span class="chip">Web Audio</span>
+    </div>
+    <div class="cta">
+      <a class="btn btn-play" href="https://angry-pig.pages.dev" target="_blank" rel="noopener">▶ 開始遊玩</a>
+      <a class="btn btn-ghost" href="https://github.com/craig7351/angry-pig" target="_blank" rel="noopener">⭐ 原始碼</a>
+    </div>
+  </footer>
+
+</body>
+</html>
