@@ -11,8 +11,9 @@ export const onRequestGet = async ({ env }) => {
     const day = Math.floor(now / 86400000)
     await env.DB.prepare('INSERT INTO online_daily (day, peak) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET peak = MAX(peak, ?)')
       .bind(day, n, n).run()
-    // 機會性清除過期列
+    // 機會性清除過期列：在線名單（>10 分）與限流表（>1 天，順帶縮短 IP 留存）
     await env.DB.prepare('DELETE FROM presence WHERE last_seen < ?').bind(now - 600000).run()
+    await env.DB.prepare('DELETE FROM rate WHERE last_at < ?').bind(now - 86400000).run()
     return json({ online: n })
   } catch {
     return json({ online: 1 })
