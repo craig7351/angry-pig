@@ -431,7 +431,7 @@ function addBody(type, x, z, bottomY) {
     body.addEventListener('collide', (e) => {
       if (ent.dead || !game || !game.armed) return   // 開場沉降期間免疫，避免被掉落積木誤引爆
       const v = Math.abs(e.contact.getImpactVelocityAlongNormal())
-      if (v > 6) { ent.hp -= v * 6; if (ent.hp <= 0) { ent.dead = true; ent.popping = 0; explode(body.position, cfg.explosive); game.score += 500 } }
+      if (v > 6) { ent.hp -= v * 6; if (ent.hp <= 0) { ent.dead = true; ent.popping = 0; explode(body.position, cfg.explosive); addScore(500) } }
     })
   } else if (!isAnimal(type)) {
     // 積木（木箱／紙箱／硬箱／磚／樑…）：掉落與碰撞時的木頭撞擊聲（開場沉降期間靜音、全域節流）
@@ -452,6 +452,10 @@ function addBody(type, x, z, bottomY) {
 const SCORE_BASE = 1000, SCORE_PER_HEIGHT = 400, SCORE_PER_DIST = 200
 const bonusFor = (height, dist) =>
   Math.round((SCORE_BASE + Math.max(0, height) * SCORE_PER_HEIGHT + Math.max(0, dist) * SCORE_PER_DIST) / 50) * 50
+function addScore(v) { game.score += v }
+// 金幣（僅死鬥）：跟分數/飛行 bonus 脫鉤，只從「擊殺數 + 每波清空」發放，避免通膨
+const COIN_PER_KILL = 50
+function addCoins(v) { if (game.endless && !game.happy) game.coins = (game.coins || 0) + v }
 
 // 里程碑門檻（飛行中突破就爆字）
 const MS_HEIGHT = [{ v: 2.0, t: '騰空！' }, { v: 4.0, t: '高飛！' }, { v: 6.5, t: '沖天！' }]
@@ -463,7 +467,7 @@ function killAnimal(e) {
   const height = Math.max(0, (e.maxY || 0) - (e.startY || 0))
   const dist = Math.hypot(e.body.position.x - (e.spawnX || 0), e.body.position.z - (e.spawnZ || 0))
   const bonus = bonusFor(height, dist)
-  game.score += bonus; game.pigs--; pendingKills++   // 全服消滅數 +1
+  addScore(bonus); addCoins(COIN_PER_KILL); game.pigs--; pendingKills++   // 全服消滅數 +1；死鬥每殺給固定金幣
   sfx.die()
   removeTag(e); removeTrail(e)   // 收掉跟隨計數器與拖尾
   // 死亡結算：金色大字定格上飄
@@ -666,18 +670,17 @@ function throwBall(power) {
 //  特殊彈藥（僅死鬥模式）：炸彈 / 一分多 / 召喚豬
 // ============================================================
 const SPECIALS = [
-  { key: 'bomb', emoji: '💣', name: '炸彈', desc: '命中即爆炸，掀翻周圍一整片' },
-  { key: 'split', emoji: '🎯', name: '一分多', desc: '飛行中分裂成多顆霰彈掃射' },
-  { key: 'summon', emoji: '🐖', name: '召喚豬', desc: '召喚巨大豬往準星衝，撞倒一切' },
-  { key: 'blackhole', emoji: '🕳️', name: '黑洞彈', desc: '命中把周圍吸向中心再內爆' },
-  { key: 'lightning', emoji: '⚡', name: '連鎖閃電', desc: '天降閃電連鎖電擊一排動物' },
-  { key: 'wreck', emoji: '🎳', name: '鐵球', desc: '超重鐵球直接輾穿整座堡壘' },
-  { key: 'tornado', emoji: '🌪️', name: '龍捲風', desc: '命中生成龍捲把東西往上捲飛' },
-  { key: 'cluster', emoji: '💥', name: '集束炸彈', desc: '空中散成多顆小炸彈連環爆' },
+  { key: 'bomb', emoji: '💣', name: '炸彈', desc: '命中即爆炸，掀翻周圍一整片', price: 1100 },
+  { key: 'split', emoji: '🎯', name: '一分多', desc: '飛行中分裂成多顆霰彈掃射', price: 850 },
+  { key: 'summon', emoji: '🐖', name: '召喚豬', desc: '召喚巨大豬往準星衝，撞倒一切', price: 1500 },
+  { key: 'blackhole', emoji: '🕳️', name: '黑洞彈', desc: '命中把周圍吸向中心再內爆', price: 1800 },
+  { key: 'lightning', emoji: '⚡', name: '連鎖閃電', desc: '天降閃電連鎖電擊一排動物', price: 1400 },
+  { key: 'wreck', emoji: '🎳', name: '鐵球', desc: '超重鐵球直接輾穿整座堡壘', price: 700 },
+  { key: 'tornado', emoji: '🌪️', name: '龍捲風', desc: '命中生成龍捲把東西往上捲飛', price: 1300 },
+  { key: 'cluster', emoji: '💥', name: '集束炸彈', desc: '空中散成多顆小炸彈連環爆', price: 1600 },
 ]
-const equippedKeys = () => SPECIALS.filter((s) => loadout[s.key]).map((s) => s.key).slice(0, 3)   // 最多帶 3 種
-const slotKeys = () => (game && game.happy) ? SPECIALS.map((s) => s.key) : equippedKeys()   // 快樂模式全部 9 種
-const SPECIAL_UNLIMITED = true   // 測試用：特殊彈藥不限次數（正式版改回 false 恢復「每場各一顆」）
+const equippedKeys = () => SPECIALS.filter((s) => loadout[s.key]).map((s) => s.key).slice(0, 3)   // 開局帶 3 種各 1 顆
+const slotKeys = () => SPECIALS.map((s) => s.key)   // 死鬥/快樂 HUD 都列全 8 種（死鬥可在商店買到任一種）
 const LOADOUT_KEY = 'angrypig:loadout'
 function loadLoadout() { try { const o = JSON.parse(localStorage.getItem(LOADOUT_KEY)); return o && typeof o === 'object' ? o : {} } catch { return {} } }
 const loadout = { bomb: true, split: true, summon: true, ...loadLoadout() }   // 預設全裝備
@@ -921,24 +924,42 @@ function updateSpecialsHUD() {
   el.classList.toggle('hidden', !on)
   if (!on) { specialsSig = ''; return }
   const eq = slotKeys()
-  const sig = eq.map((k) => k + (game.specials[k] ? '1' : '0') + (game.selected === k ? '*' : '')).join('|')
+  const cnt = (k) => game.specials[k] || 0
+  const sig = eq.map((k) => k + cnt(k) + (game.selected === k ? '*' : '')).join('|')
   if (sig === specialsSig) return
   specialsSig = sig
   el.innerHTML = eq.map((k, i) => {
     const s = SPECIALS.find((x) => x.key === k)
-    const cls = 'sp-slot' + (game.specials[k] ? '' : ' used') + (game.selected === k ? ' sel' : '')
-    return `<button class="${cls}" data-sp="${k}"><span class="sp-emoji">${s.emoji}</span><span class="sp-key">${i + 1}</span></button>`
+    const c = cnt(k)
+    const cls = 'sp-slot' + (c > 0 ? '' : ' used') + (game.selected === k ? ' sel' : '')
+    const badge = c === Infinity ? '∞' : c   // 快樂無限顯示 ∞，死鬥顯示剩餘數
+    return `<button class="${cls}" data-sp="${k}"><span class="sp-emoji">${s.emoji}</span><span class="sp-key">${i + 1}</span><span class="sp-cnt">${badge}</span></button>`
   }).join('')
 }
-// 商店 / 裝備彈窗
+// 商店：兩種模式 —— 'equip'（首頁免費挑開局 3 種）/ 'buy'（死鬥中每 10 波花金幣補貨）
+let shopMode = 'equip'
 function renderShop() {
   const list = document.getElementById('shop-list'); if (!list) return
-  const n = equippedKeys().length
-  const head = document.getElementById('shop-count'); if (head) head.textContent = `已裝備 ${n} / 3`
+  const title = document.getElementById('shop-title')
+  const head = document.getElementById('shop-count')
+  const cont = document.getElementById('shop-continue')
+  const buying = shopMode === 'buy'
+  shopModal.classList.toggle('locked', buying)
+  if (title) title.textContent = buying ? '🛒 補給站 · 花金幣補貨' : '🛒 商店 · 特殊彈藥'
+  if (cont) cont.classList.toggle('hidden', !buying)
+  if (head) {
+    head.textContent = buying ? `💰 ${(game.coins || 0).toLocaleString()} 金幣` : `免費挑開局 3 種（已裝備 ${equippedKeys().length} / 3）`
+  }
   list.innerHTML = SPECIALS.map((s) => {
+    const info = `<div class="shop-info"><div class="shop-name">${s.name}</div><div class="shop-desc">${s.desc}</div></div>`
+    if (buying) {
+      const own = (game.specials && game.specials[s.key]) || 0
+      const afford = (game.coins || 0) >= s.price
+      return `<div class="shop-item"><div class="shop-emoji">${s.emoji}<span class="shop-own">×${own}</span></div>` + info +
+        `<button class="shop-buy${afford ? '' : ' poor'}" data-sp="${s.key}">💰 ${s.price}</button></div>`
+    }
     const on = !!loadout[s.key]
-    return `<div class="shop-item"><div class="shop-emoji">${s.emoji}</div>` +
-      `<div class="shop-info"><div class="shop-name">${s.name}</div><div class="shop-desc">${s.desc}</div></div>` +
+    return `<div class="shop-item"><div class="shop-emoji">${s.emoji}</div>` + info +
       `<button class="shop-toggle${on ? ' on' : ''}" data-sp="${s.key}">${on ? '已裝備' : '裝備'}</button></div>`
   }).join('')
 }
@@ -991,6 +1012,7 @@ const hud = {
   abFill: document.getElementById('ab-fill'), abMult: document.getElementById('ab-mult'),
   flyBest: document.getElementById('fly-best'),
   flyBig: document.getElementById('fly-big'), flyBigVal: document.getElementById('fb-val'),
+  coins: document.getElementById('coins'), coinStat: document.getElementById('coin-stat'),
 }
 function refreshHUD() {
   if (!game) return
@@ -999,6 +1021,10 @@ function refreshHUD() {
   hud.ammo.textContent = game.happy ? '🔴∞' : a > 8 ? '🔴×' + a : '🔴'.repeat(a)
   hud.pigs.textContent = '🐾 ' + Math.max(0, game.pigs)
   hud.level.textContent = game.happy ? `😄 快樂 第 ${game.wave} 波` : game.endless ? `☠️ 第 ${game.wave} 波` : `${currentLevel + 1}／${LEVELS.length}`
+  // 金幣：只有死鬥模式顯示（快樂無限、一般關卡不用）
+  const showCoins = game.endless && !game.happy
+  if (hud.coinStat) hud.coinStat.classList.toggle('hidden', !showCoins)
+  if (hud.coins && showCoins) hud.coins.textContent = '💰 ' + (game.coins || 0).toLocaleString()
 }
 // 空中 BONUS 倍率條：有動物在飛就顯示當前最佳表現
 function updateAirBonusHUD(bonus, height) {
@@ -1363,9 +1389,11 @@ function startEndless(happy = false) {
   initAudio()
   if (musicEnabled) music.start()
   clearWorld()
-  // 快樂模式：所有特殊彈都帶且無限;死鬥:只帶已裝備的 3 種
-  const specials = {}; for (const k of (happy ? SPECIALS.map((s) => s.key) : equippedKeys())) specials[k] = true
-  game = { score: 0, ammo: 0, ammoStart: 0, pigs: 0, over: false, cooldown: 0, emptyT: 0, startT: 0, armed: false, intro: false, introT: 0, winDelay: 0, endless: true, happy, wave: 0, paused: false, maxFly: 0,
+  // 快樂：所有特殊彈無限（值 Infinity）；死鬥：開局帶裝備的 3 種各 1 顆，之後靠金幣在商店補
+  const specials = {}
+  if (happy) for (const s of SPECIALS) specials[s.key] = Infinity
+  else for (const k of equippedKeys()) specials[k] = 1
+  game = { score: 0, coins: 0, ammo: 0, ammoStart: 0, pigs: 0, over: false, cooldown: 0, emptyT: 0, startT: 0, armed: false, intro: false, introT: 0, winDelay: 0, endless: true, happy, wave: 0, paused: false, maxFly: 0,
     specials, selected: null }
   bumpPlays()
   overlay.classList.add('hidden'); hud.msg.classList.add('hidden')
@@ -1797,16 +1825,43 @@ document.getElementById('msg-send').addEventListener('click', sendMessage)
 document.getElementById('msg-text').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage() })
 // 關閉鈕（data-close）與點背景關閉
 for (const btn of document.querySelectorAll('.mclose[data-close]')) {
-  btn.addEventListener('click', () => document.getElementById(btn.dataset.close).classList.add('hidden'))
+  btn.addEventListener('click', () => {
+    const m = document.getElementById(btn.dataset.close)
+    if (m === shopModal && shopMode === 'buy') return   // 補給站不能用 ✕ 關，只能按繼續
+    m.classList.add('hidden')
+  })
 }
 // 商店（裝備特殊彈藥）
 const shopModal = document.getElementById('shop-modal')
-function openShop() { renderShop(); shopModal.classList.remove('hidden') }
+function openShop() { shopMode = 'equip'; renderShop(); shopModal.classList.remove('hidden') }
 document.getElementById('shop-btn-landing').addEventListener('click', openShop)
+// 死鬥每 10 波：暫停開啟補給商店（花金幣補貨），按「繼續」才進下一波
+function openRunShop() {
+  game.paused = true; game.selected = null
+  shopMode = 'buy'; renderShop(); shopModal.classList.remove('hidden')
+  exitLock()   // 釋放指標鎖定才能點按鈕
+}
+function closeRunShop() {
+  shopModal.classList.add('hidden')
+  game.paused = false
+  nextWave()
+  if (!IS_TOUCH) canvas.requestPointerLock()
+}
+document.getElementById('shop-continue').addEventListener('click', closeRunShop)
 document.getElementById('shop-list').addEventListener('click', (e) => {
   const b = e.target.closest('[data-sp]'); if (!b) return
   const key = b.dataset.sp
-  if (!loadout[key] && equippedKeys().length >= 3) { const h = document.getElementById('shop-count'); if (h) { h.textContent = '最多裝備 3 種！'; h.classList.add('warn'); setTimeout(() => h.classList.remove('warn'), 900) } return }
+  const head = document.getElementById('shop-count')
+  if (shopMode === 'buy') {
+    const s = SPECIALS.find((x) => x.key === key); if (!s) return
+    if ((game.coins || 0) < s.price) { if (head) { head.classList.add('warn'); setTimeout(() => head.classList.remove('warn'), 900) } return }
+    game.coins -= s.price
+    game.specials[key] = (game.specials[key] || 0) + 1
+    sfx.pop(); renderShop()
+    return
+  }
+  // 裝備模式：切換開局 3 種
+  if (!loadout[key] && equippedKeys().length >= 3) { if (head) { head.textContent = '最多裝備 3 種！'; head.classList.add('warn'); setTimeout(() => head.classList.remove('warn'), 900) } return }
   loadout[key] = !loadout[key]; saveLoadout(); renderShop()
 })
 // 特殊彈藥槽：點選（手機）；桌機用 1/2/3 鍵
@@ -1816,7 +1871,11 @@ document.getElementById('specials').addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key >= '1' && e.key <= '9') { const k = slotKeys()[+e.key - 1]; if (k) selectSpecial(k) }
 })
-for (const m of [msgModal, onlineModal, shopModal]) m.addEventListener('click', (e) => { if (e.target === m) m.classList.add('hidden') })
+for (const m of [msgModal, onlineModal, shopModal]) m.addEventListener('click', (e) => {
+  if (e.target !== m) return
+  if (m === shopModal && shopMode === 'buy') return   // 補給站不能點背景關閉
+  m.classList.add('hidden')
+})
 // 心跳 + 線上人數：載入即上報，之後每 60 秒
 postHeartbeat(); refreshOnline(); refreshTotals()
 setInterval(() => { postHeartbeat(); refreshOnline() }, 60000)
@@ -1868,7 +1927,7 @@ function fireUp() {
   if (hasUsableSelected()) {                       // 發射選定的特殊彈（不扣普通彈藥）
     const sel = game.selected
     throwSpecial(sel, power)
-    if (!SPECIAL_UNLIMITED && !game.happy) { game.specials[sel] = false; game.selected = null }   // 快樂/測試期不消耗
+    if (!game.happy) { game.specials[sel]--; if (game.specials[sel] <= 0) game.selected = null }   // 快樂無限不消耗
     game.cooldown = 0.45; refreshHUD()
   } else {
     throwBall(power); sfx.throw()
@@ -2093,7 +2152,13 @@ function loop() {
   if (game && !game.over && !game.intro && game.pigs <= 0) {
     game.winDelay += dt
     if (game.endless) {
-      if (game.winDelay >= 1.6) { game.score += 300 + game.wave * 150; nextWave() }   // 清波 → 下一波
+      if (game.winDelay >= 1.6) {
+        addScore(300 + game.wave * 150)
+        addCoins(40 + game.wave * 15)   // 每波清空的小額金幣（隨波數微幅成長）
+        // 死鬥每 10 波 → 進補給商店（買完再下一波）；快樂模式直接下一波
+        if (!game.happy && game.wave % 10 === 0) openRunShop()
+        else nextWave()
+      }
     } else if (game.winDelay >= WIN_DELAY) win()
   }
 

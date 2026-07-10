@@ -320,8 +320,12 @@
     .sp-slot .sp-emoji { font-size: 26px; line-height: 1; }
     .sp-slot .sp-key { position: absolute; top: -7px; left: -7px; width: 18px; height: 18px; border-radius: 50%;
       background: #333; color: #fff; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+    .sp-slot .sp-cnt { position: absolute; bottom: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 4px;
+      border-radius: 9px; background: #e0533b; color: #fff; font-size: 11px; font-weight: 900;
+      display: flex; align-items: center; justify-content: center; }
     .sp-slot.sel { border-color: #ffd24a; background: rgba(224,83,59,.55); box-shadow: 0 0 0 3px rgba(255,210,74,.5); }
     .sp-slot.used { opacity: .35; }
+    .sp-slot.used .sp-cnt { background: #666; }
 
     /* 商店 */
     #shop-count.warn { color: #d24a2a; font-weight: 900; }
@@ -333,6 +337,19 @@
     .shop-desc { font-size: 12px; color: #888; }
     .shop-toggle { padding: 7px 14px; font-size: 13px; background: #e9e9ee; color: #444; box-shadow: none; }
     .shop-toggle.on { background: #e0533b; color: #fff; }
+    /* 補給站（購買模式） */
+    .shop-emoji { position: relative; }
+    .shop-own { position: absolute; bottom: -4px; right: -8px; font-size: 12px; font-weight: 900; color: #7a5a34;
+      background: #f3e6c6; border-radius: 999px; padding: 1px 6px; }
+    .shop-buy { padding: 7px 14px; font-size: 14px; font-weight: 800; background: #f4b93a; color: #5a3d10;
+      box-shadow: none; white-space: nowrap; }
+    .shop-buy.poor { background: #e9e9ee; color: #aaa; }
+    #shop-modal.locked .mclose { display: none; }
+    #shop-count { font-weight: 800; color: #7a5a34; }
+    #shop-continue { display: block; width: calc(100% - 32px); margin: 4px 16px 16px; padding: 13px;
+      font-size: 16px; font-weight: 900; background: #e0533b; color: #fff; border-radius: 12px; box-shadow: none; }
+    #shop-continue.hidden { display: none; }
+    #coins { color: #f4b93a; }
   </style>
 </head>
 <body>
@@ -344,6 +361,7 @@
     <div class="stat"><span class="k">分數</span><span class="v" id="score">0</span></div>
     <div class="stat"><span class="k">彈藥</span><span class="v" id="ammo"></span></div>
     <div class="stat"><span class="k">剩餘動物</span><span class="v" id="pigs"></span></div>
+    <div class="stat hidden" id="coin-stat"><span class="k">金幣</span><span class="v" id="coins">💰 0</span></div>
     <div class="stat"><span class="k">最高飛行</span><span class="v" id="fly-best">0.0 m</span></div>
   </div>
   <div id="power"><div id="power-fill"></div></div>
@@ -438,12 +456,13 @@
     </div>
   </div>
 
-  <!-- 商店（裝備特殊彈藥）彈窗 -->
+  <!-- 商店：首頁＝裝備開局 3 種；死鬥中每 10 波＝花金幣補貨 -->
   <div id="shop-modal" class="modal hidden">
     <div class="lb-card">
-      <div class="lb-head"><span>🛒 商店 · 特殊彈藥</span><button class="mclose" data-close="shop-modal">✕</button></div>
-      <div class="lb-src" style="padding:10px 16px 0">免費裝備 · 死鬥模式帶進場（<span id="shop-count">已裝備 3 / 3</span>）</div>
+      <div class="lb-head"><span id="shop-title">🛒 商店 · 特殊彈藥</span><button class="mclose" data-close="shop-modal">✕</button></div>
+      <div class="lb-src" id="shop-count" style="padding:10px 16px 0">免費挑開局 3 種</div>
       <div id="shop-list"></div>
+      <button id="shop-continue" class="hidden">▶ 繼續下一波</button>
     </div>
   </div>
 
