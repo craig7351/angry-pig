@@ -201,9 +201,9 @@
     /* 中央木框面板（panel.webp 拉伸當背景） */
     .land-panel { position: relative; z-index: 2; width: min(90vw, 420px); max-height: 96vh; overflow: visible;
       background: url(assets/ui/panel.webp) center/100% 100% no-repeat;
-      padding: 26px 40px 20px; display: flex; flex-direction: column; align-items: stretch; gap: 7px;
+      padding: 22px 40px 16px; display: flex; flex-direction: column; align-items: stretch; gap: 6px;
       color: #6b4a2a; text-align: center; }
-    .land-title { display: block; width: 92%; max-width: 340px; margin: -66px auto 0; pointer-events: none;
+    .land-title { display: block; width: 88%; max-width: 300px; margin: -56px auto 0; pointer-events: none;
       filter: drop-shadow(0 5px 8px rgba(0,0,0,.25)); }
     #online-badge { align-self: center; display: inline-flex; align-items: center; gap: 6px;
       font-size: 13px; font-weight: 800; color: #2e9e5b; background: rgba(232,250,238,.9); border-radius: 999px; padding: 4px 12px; }
@@ -211,26 +211,26 @@
       box-shadow: 0 0 0 0 rgba(52,199,89,.6); animation: pulse 1.6s infinite; }
     @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(52,199,89,.5); } 70% { box-shadow: 0 0 0 7px rgba(52,199,89,0); } 100% { box-shadow: 0 0 0 0 rgba(52,199,89,0); } }
     .land-name-label { font-size: 12px; font-weight: 800; color: #9a7b52; letter-spacing: 1px; margin-top: 2px; }
-    #name-input { width: 100%; font-size: 18px; font-weight: 800; text-align: center; padding: 7px 14px;
+    #name-input { width: 100%; font-size: 17px; font-weight: 800; text-align: center; padding: 6px 14px;
       border: 2px solid #d9c39a; border-radius: 12px; outline: none; color: #5a3d20; background: rgba(255,255,255,.6); }
     #name-input:focus { border-color: #e0771a; }
     /* 大按鈕（開始 / 死鬥） */
-    #start-btn, #endless-btn { width: 100%; border: none; border-radius: 16px; color: #fff; cursor: pointer;
-      font-weight: 900; padding: 9px; line-height: 1.12; box-shadow: 0 5px 0 rgba(0,0,0,.18), 0 8px 14px rgba(0,0,0,.2);
-      display: flex; flex-direction: column; align-items: center; gap: 1px; transition: transform .1s, filter .1s; }
+    #start-btn, #endless-btn { width: 100%; border: none; border-radius: 14px; color: #fff; cursor: pointer;
+      font-weight: 900; padding: 6px; line-height: 1.1; box-shadow: 0 4px 0 rgba(0,0,0,.18), 0 6px 12px rgba(0,0,0,.2);
+      display: flex; flex-direction: column; align-items: center; gap: 0; transition: transform .1s, filter .1s; }
     #start-btn { background: linear-gradient(#ff9a3d, #ff6a00); }
     #endless-btn { background: linear-gradient(#e85466, #c11f2b); }
-    #start-btn span.big, #endless-btn span.big { font-size: 19px; letter-spacing: 1px; }
-    #start-btn small, #endless-btn small { font-size: 12px; font-weight: 700; opacity: .92; }
+    #start-btn span.big, #endless-btn span.big { font-size: 18px; letter-spacing: 1px; }
+    #start-btn small, #endless-btn small { font-size: 11px; font-weight: 700; opacity: .92; }
     #start-btn:hover:not(:disabled), #endless-btn:hover:not(:disabled) { filter: brightness(1.05); }
     #start-btn:active:not(:disabled), #endless-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,.18); }
     #start-btn:disabled, #endless-btn:disabled { background: #c9bfa6; box-shadow: none; cursor: not-allowed; opacity: .7; }
-    #happy-btn { width: 100%; border: none; border-radius: 16px; color: #fff; cursor: pointer; font-weight: 900;
-      padding: 9px; line-height: 1.12; box-shadow: 0 5px 0 rgba(0,0,0,.18), 0 8px 14px rgba(0,0,0,.2);
-      display: flex; flex-direction: column; align-items: center; gap: 1px; transition: transform .1s, filter .1s;
+    #happy-btn { width: 100%; border: none; border-radius: 14px; color: #fff; cursor: pointer; font-weight: 900;
+      padding: 6px; line-height: 1.1; box-shadow: 0 4px 0 rgba(0,0,0,.18), 0 6px 12px rgba(0,0,0,.2);
+      display: flex; flex-direction: column; align-items: center; gap: 0; transition: transform .1s, filter .1s;
       background: linear-gradient(#5bd06a, #2a9d3f); }
-    #happy-btn span.big { font-size: 19px; letter-spacing: 1px; }
-    #happy-btn small { font-size: 12px; font-weight: 700; opacity: .92; }
+    #happy-btn span.big { font-size: 18px; letter-spacing: 1px; }
+    #happy-btn small { font-size: 11px; font-weight: 700; opacity: .92; }
     #happy-btn:hover:not(:disabled) { filter: brightness(1.05); }
     #happy-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 2px 0 rgba(0,0,0,.18); }
     #happy-btn:disabled { background: #c9bfa6; box-shadow: none; cursor: not-allowed; opacity: .7; }
