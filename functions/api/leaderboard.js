@@ -1,8 +1,9 @@
-import { json } from './_lib.js'
+import { json, edgeCached } from './_lib.js'
 
 // GET /api/leaderboard?limit=10&level=關卡名
-//   有 level → 該關排行榜；無 level → 全關（各名字取最高分）
-export const onRequestGet = async ({ request, env }) => {
+//   有 level → 該關排行榜；無 level → 全關（各名字取最高分）。邊緣快取 30 秒。
+export const onRequestGet = async (ctx) => edgeCached(ctx.request, ctx.waitUntil && ctx.waitUntil.bind(ctx), 30, () => build(ctx))
+async function build({ request, env }) {
   const url = new URL(request.url)
   const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 10, 1), 50)
   const level = url.searchParams.get('level') || ''

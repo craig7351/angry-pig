@@ -8,6 +8,25 @@ export function json(data, status = 200) {
   })
 }
 
+/**
+ * 讀取端點邊緣快取：命中直接回；否則跑 build() 產生 Response，成功(200)才設 Cache-Control 並存入快取。
+ * 讓多位使用者的重複 GET 直接吃 Cloudflare 邊緣，不進 Functions 也不打 D1。
+ */
+export async function edgeCached(request, waitUntil, maxAge, build) {
+  const cache = caches.default
+  const key = new Request(new URL(request.url).toString(), { method: 'GET' })
+  const hit = await cache.match(key)
+  if (hit) return hit
+  const resp = await build()
+  try {
+    if (resp.status === 200) {
+      resp.headers.set('Cache-Control', `public, max-age=${maxAge}`)
+      if (waitUntil) waitUntil(cache.put(key, resp.clone()))
+    }
+  } catch {}
+  return resp
+}
+
 /** 夾在 [min,max] 的整數（非數字回 min） */
 export function clampInt(v, min, max) {
   const n = Number(v)

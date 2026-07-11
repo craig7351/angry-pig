@@ -2120,11 +2120,14 @@ document.getElementById('set-reset').addEventListener('click', () => {
   Object.assign(settings, SETTINGS_DEFAULTS)   // 全部回到預設
   saveSettings(); applySettings(); syncSettingsUI()
 })
-// 心跳 + 線上人數：載入即上報，之後每 60 秒
+// 心跳 + 線上人數：載入即上報；之後每 90 秒，且分頁隱藏時暫停輪詢（省 Functions/D1 用量）
 postHeartbeat(); refreshOnline(); refreshTotals()
-setInterval(() => { postHeartbeat(); refreshOnline() }, 60000)
-setInterval(flushTotals, 30000)   // 每 30 秒上傳一次累積的消滅數/遊玩時間
-document.addEventListener('visibilitychange', () => { if (document.hidden) flushTotals() })
+setInterval(() => { if (!document.hidden) { postHeartbeat(); refreshOnline() } }, 90000)
+setInterval(() => { if (!document.hidden) flushTotals() }, 30000)   // 每 30 秒上傳累積的消滅數/遊玩時間
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) flushTotals()                 // 離開分頁先把累積送出，避免遺失
+  else { postHeartbeat(); refreshOnline() }           // 回到分頁立即更新一次
+})
 
 document.getElementById('retry').addEventListener('click', () => (game && game.endless ? startEndless(game.happy) : startLevel(currentLevel)))
 document.getElementById('next').addEventListener('click', () => startLevel(currentLevel + 1))

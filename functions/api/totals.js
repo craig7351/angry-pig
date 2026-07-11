@@ -1,14 +1,14 @@
-import { json, clampInt, clientIp, rateLimited } from './_lib.js'
+import { json, clampInt, clientIp, rateLimited, edgeCached } from './_lib.js'
 
-// GET /api/totals — 全服累計統計（遊玩場次 / 消滅動物 / 遊玩秒數）
-export const onRequestGet = async ({ env }) => {
+// GET /api/totals — 全服累計統計（遊玩場次 / 消滅動物 / 遊玩秒數）。邊緣快取 60 秒。
+export const onRequestGet = async (ctx) => edgeCached(ctx.request, ctx.waitUntil && ctx.waitUntil.bind(ctx), 60, async () => {
   try {
-    const s = await env.DB.prepare('SELECT plays, kills, seconds FROM stats WHERE id=1').first()
+    const s = await ctx.env.DB.prepare('SELECT plays, kills, seconds FROM stats WHERE id=1').first()
     return json({ plays: (s && s.plays) || 0, kills: (s && s.kills) || 0, seconds: (s && s.seconds) || 0 })
   } catch {
     return json({ plays: 0, kills: 0, seconds: 0 })
   }
-}
+})
 
 // POST /api/totals — 累加 { runs, kills, seconds }（同 IP 每 2.5 秒最多一次）
 export const onRequestPost = async ({ request, env }) => {

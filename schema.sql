@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS scores (
   created_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_scores_score ON scores (score DESC);
+-- 分關排行榜/名次查詢用（依 level 過濾 + 依 score 排序），降低 rows_read
+CREATE INDEX IF NOT EXISTS idx_scores_level_score ON scores (level, score DESC);
 
 -- 速率限制：key（action:ip）最後一次寫入時間
 CREATE TABLE IF NOT EXISTS rate (
