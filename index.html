@@ -300,8 +300,19 @@
     .msg-item .m-name { font-weight: 800; color: #e0533b; }
     .msg-item .m-when { font-size: 11px; color: #aaa; margin-left: 6px; }
     .msg-item .m-text { color: #333; margin-top: 2px; word-break: break-word; }
-    .msg-item .m-reply { border-left: 3px solid #f0d0c6; margin: 4px 0 0 10px; padding-left: 8px; }
+    .msg-item .m-reply { border-left: 3px solid #f0d0c6; margin: 6px 0 0 14px; padding: 5px 0 2px 10px; }
     .m-empty { text-align: center; color: #999; padding: 24px; font-size: 14px; }
+    /* 留言操作（回覆 / 刪除）與回覆提示 */
+    .m-acts { margin-top: 3px; display: flex; gap: 10px; }
+    .m-act { background: none; border: none; box-shadow: none; padding: 0; cursor: pointer;
+      font-size: 12px; font-weight: 800; color: #9a7b52; }
+    .m-act:hover { color: #e0533b; }
+    #msg-reply-hint { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      margin: 4px 16px 0; padding: 6px 12px; border-radius: 8px; background: #fff3ec; color: #b24a2a;
+      font-size: 13px; font-weight: 800; }
+    #msg-reply-hint.hidden { display: none; }
+    #msg-reply-hint button { background: none; border: none; box-shadow: none; color: #b24a2a;
+      font-weight: 900; cursor: pointer; padding: 0 2px; font-size: 14px; }
 
     /* 上線人數圖表 */
     #online-body { padding: 14px 16px 20px; }
@@ -536,6 +547,7 @@
   <div id="msg-modal" class="modal hidden">
     <div class="lb-card">
       <div class="lb-head"><span>💬 留言板</span><button class="mclose" data-close="msg-modal">✕</button></div>
+      <div id="msg-reply-hint" class="hidden"></div>
       <div class="msg-compose">
         <input id="msg-text" maxlength="120" placeholder="留個言…（最多 120 字）" autocomplete="off" />
         <button id="msg-send">送出</button>

@@ -1906,7 +1906,25 @@ const timeAgo = (at) => {
   if (s < 86400) return Math.floor(s / 3600) + ' 小時前'
   return Math.floor(s / 86400) + ' 天前'
 }
-// ---- 留言板 ----
+// ---- 留言板（分層顯示 + 回覆 + 刪除；刪除需管理密碼）----
+let replyTo = null   // { id, name } 目前正在回覆的留言
+function setReply(id, name) {
+  replyTo = id ? { id, name } : null
+  const hint = document.getElementById('msg-reply-hint'); if (!hint) return
+  hint.classList.toggle('hidden', !replyTo)
+  if (replyTo) {
+    hint.innerHTML = `↩ 回覆 <b>@${escapeHtml(replyTo.name)}</b><button id="msg-reply-cancel">✕ 取消</button>`
+    const t = document.getElementById('msg-text'); if (t) t.focus()
+  }
+}
+function msgItemHtml(m, isReply) {
+  const acts = '<div class="m-acts">' +
+    (isReply ? '' : `<button class="m-act" data-reply="${m.id}" data-name="${escapeHtml(m.name)}">↩ 回覆</button>`) +
+    `<button class="m-act" data-del="${m.id}">🗑 刪除</button></div>`
+  return `<div class="msg-item${isReply ? ' m-reply' : ''}">` +
+    `<div><span class="m-name">${escapeHtml(m.name)}</span><span class="m-when">${timeAgo(m.at)}</span></div>` +
+    `<div class="m-text">${escapeHtml(m.text)}</div>${acts}</div>`
+}
 async function loadMessages() {
   const list = document.getElementById('msg-list')
   list.innerHTML = '<div class="m-empty">載入中…</div>'
@@ -1914,10 +1932,13 @@ async function loadMessages() {
   try { const r = await fetch('/api/messages'); if (r.ok) { const j = await r.json(); if (Array.isArray(j)) msgs = j } } catch {}
   if (msgs === null) { list.innerHTML = '<div class="m-empty">留言板需連線到伺服器（線上版才可用）</div>'; return }
   if (!msgs.length) { list.innerHTML = '<div class="m-empty">還沒有留言，搶頭香！</div>'; return }
-  list.innerHTML = msgs.map((m) =>
-    `<div class="msg-item"><div><span class="m-name">${escapeHtml(m.name)}</span>` +
-    `<span class="m-when">${timeAgo(m.at)}</span></div>` +
-    `<div class="m-text">${escapeHtml(m.text)}</div></div>`).join('')
+  const tops = msgs.filter((m) => m.parentId == null)                         // 頂層留言（API 已依新→舊）
+  const byParent = {}
+  for (const m of msgs) if (m.parentId != null) (byParent[m.parentId] = byParent[m.parentId] || []).push(m)
+  list.innerHTML = tops.map((t) => {
+    const reps = (byParent[t.id] || []).sort((a, b) => a.id - b.id)            // 回覆舊→新
+    return msgItemHtml(t, false) + reps.map((r) => msgItemHtml(r, true)).join('')
+  }).join('')
 }
 async function sendMessage() {
   const input = document.getElementById('msg-text')
@@ -1925,17 +1946,32 @@ async function sendMessage() {
   if (!text) return
   const btn = document.getElementById('msg-send'); btn.disabled = true
   try {
+    const body = { name: playerName || '匿名', text, deviceId }
+    if (replyTo) body.parentId = replyTo.id
     const r = await fetch('/api/messages', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: playerName || '匿名', text, deviceId }),
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
     })
     const j = await r.json().catch(() => ({}))
-    if (r.ok && j.ok) { input.value = ''; await loadMessages() }
+    if (r.ok && j.ok) { input.value = ''; setReply(null); await loadMessages() }
     else if (j.error === 'too fast') alert('留言太頻繁，請稍候再試')
     else if (j.error === 'blocked') alert('留言含不當字詞，已擋下')
     else alert('留言失敗（需連線到線上版）')
   } catch { alert('留言失敗（需連線到線上版）') }
   btn.disabled = false
+}
+async function deleteMessage(id) {
+  const key = prompt('刪除留言需要管理密碼：')
+  if (key == null || key === '') return
+  try {
+    const r = await fetch('/api/messages', {
+      method: 'DELETE', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: +id, key }),
+    })
+    const j = await r.json().catch(() => ({}))
+    if (r.ok && j.ok) await loadMessages()
+    else if (j.error === 'forbidden') alert('密碼錯誤')
+    else if (j.error === 'disabled') alert('刪除功能未啟用')
+    else alert('刪除失敗')
+  } catch { alert('刪除失敗') }
 }
 // ---- 上線人數歷史 ----
 const dayLabel = (at) => { const d = new Date(at); return `${d.getMonth() + 1}/${d.getDate()}` }
@@ -2036,11 +2072,17 @@ document.getElementById('lb-btn-landing').addEventListener('click', () => openLB
 
 // ---- 留言板 / 上線人數 彈窗 ----
 const msgModal = document.getElementById('msg-modal'), onlineModal = document.getElementById('online-modal')
-function openMsg() { loadMessages(); msgModal.classList.remove('hidden') }
+function openMsg() { setReply(null); loadMessages(); msgModal.classList.remove('hidden') }
 document.getElementById('msg-btn-landing').addEventListener('click', openMsg)
 document.getElementById('online-btn-landing').addEventListener('click', openOnline)
 document.getElementById('msg-send').addEventListener('click', sendMessage)
 document.getElementById('msg-text').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage() })
+// 留言列表：回覆 / 刪除（事件委派）
+document.getElementById('msg-list').addEventListener('click', (e) => {
+  const rep = e.target.closest('[data-reply]'); if (rep) { setReply(+rep.dataset.reply, rep.dataset.name); return }
+  const del = e.target.closest('[data-del]'); if (del) { deleteMessage(del.dataset.del) }
+})
+document.getElementById('msg-reply-hint').addEventListener('click', (e) => { if (e.target.closest('#msg-reply-cancel')) setReply(null) })
 // 關閉鈕（data-close）與點背景關閉
 for (const btn of document.querySelectorAll('.mclose[data-close]')) {
   btn.addEventListener('click', () => {
