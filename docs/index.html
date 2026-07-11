@@ -33,9 +33,6 @@
 
   /* Hero */
   .hero { text-align: center; padding: 68px 0 40px; }
-  .hero .mascot { width: clamp(150px, 32vw, 240px); height: auto; display: block; margin: 0 auto -6px;
-    filter: drop-shadow(0 12px 18px rgba(0,0,0,.32)); animation: bob 3.2s ease-in-out infinite; }
-  @keyframes bob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-10px) } }
   .hero h1 { font-size: clamp(48px, 12vw, 116px); font-weight: 900; letter-spacing: 4px; color: #fff;
     text-shadow: 0 3px 0 #c47a30, 0 5px 0 #a8642a, 0 10px 16px rgba(0,0,0,.28); margin: 4px 0 2px; }
   .hero .tag { font-size: clamp(15px, 3.4vw, 22px); font-weight: 800; color: #fff;
@@ -98,7 +95,6 @@
 <body>
 
   <header class="hero wrap">
-    <img class="mascot" src="img/sp-summon.webp" alt="憤怒豬" width="240" height="240">
     <h1>憤怒豬</h1>
     <div class="tag">第一人稱 3D 物理破壞冒險</div>
     <p class="sub" style="margin-top:18px;max-width:620px;margin-left:auto;margin-right:auto;">
