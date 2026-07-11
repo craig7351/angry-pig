@@ -1914,7 +1914,7 @@ function setReply(id, name) {
   hint.classList.toggle('hidden', !replyTo)
   if (replyTo) {
     hint.innerHTML = `↩ 回覆 <b>@${escapeHtml(replyTo.name)}</b><button id="msg-reply-cancel">✕ 取消</button>`
-    const t = document.getElementById('msg-text'); if (t) t.focus()
+    const t = document.getElementById('msg-input'); if (t) t.focus()
   }
 }
 function msgItemHtml(m, isReply) {
@@ -1941,12 +1941,15 @@ async function loadMessages() {
   }).join('')
 }
 async function sendMessage() {
-  const input = document.getElementById('msg-text')
+  const input = document.getElementById('msg-input')
   const text = input.value.trim()
   if (!text) return
   const btn = document.getElementById('msg-send'); btn.disabled = true
   try {
-    const body = { name: playerName || '匿名', text, deviceId }
+    const nameEl = document.getElementById('msg-name')
+    const name = (nameEl && nameEl.value.trim()) || playerName || '匿名'
+    try { localStorage.setItem('angrypig:msgname', name) } catch {}   // 記住自訂名字
+    const body = { name, text, deviceId }
     if (replyTo) body.parentId = replyTo.id
     const r = await fetch('/api/messages', {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
@@ -2072,11 +2075,15 @@ document.getElementById('lb-btn-landing').addEventListener('click', () => openLB
 
 // ---- 留言板 / 上線人數 彈窗 ----
 const msgModal = document.getElementById('msg-modal'), onlineModal = document.getElementById('online-modal')
-function openMsg() { setReply(null); loadMessages(); msgModal.classList.remove('hidden') }
+function openMsg() {
+  const mn = document.getElementById('msg-name')
+  if (mn && !mn.value) { let saved = ''; try { saved = localStorage.getItem('angrypig:msgname') || '' } catch {}; mn.value = saved || playerName || '' }
+  setReply(null); loadMessages(); msgModal.classList.remove('hidden')
+}
 document.getElementById('msg-btn-landing').addEventListener('click', openMsg)
 document.getElementById('online-btn-landing').addEventListener('click', openOnline)
 document.getElementById('msg-send').addEventListener('click', sendMessage)
-document.getElementById('msg-text').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage() })
+document.getElementById('msg-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage() })
 // 留言列表：回覆 / 刪除（事件委派）
 document.getElementById('msg-list').addEventListener('click', (e) => {
   const rep = e.target.closest('[data-reply]'); if (rep) { setReply(+rep.dataset.reply, rep.dataset.name); return }

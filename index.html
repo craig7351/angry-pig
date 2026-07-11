@@ -291,9 +291,11 @@
 
     /* 留言板 */
     .msg-compose { display: flex; gap: 8px; padding: 12px 16px 4px; }
-    #msg-text { flex: 1; min-width: 0; font-size: 14px; padding: 9px 12px; border: 2px solid #e6e6ee;
+    #msg-name { flex: 0 0 84px; min-width: 0; font-size: 14px; font-weight: 700; text-align: center;
+      padding: 9px 8px; border: 2px solid #e6e6ee; border-radius: 10px; outline: none; color: #222; }
+    #msg-input { flex: 1; min-width: 0; font-size: 14px; padding: 9px 12px; border: 2px solid #e6e6ee;
       border-radius: 10px; outline: none; color: #222; }
-    #msg-text:focus { border-color: #e0533b; }
+    #msg-name:focus, #msg-input:focus { border-color: #e0533b; }
     #msg-send { padding: 9px 16px; font-size: 14px; }
     #msg-list { overflow-y: auto; padding: 10px 16px 18px; }
     .msg-item { padding: 9px 6px; border-bottom: 1px solid #f2f2f5; font-size: 14px; text-align: left; }
@@ -549,7 +551,8 @@
       <div class="lb-head"><span>💬 留言板</span><button class="mclose" data-close="msg-modal">✕</button></div>
       <div id="msg-reply-hint" class="hidden"></div>
       <div class="msg-compose">
-        <input id="msg-text" maxlength="120" placeholder="留個言…（最多 120 字）" autocomplete="off" />
+        <input id="msg-name" maxlength="12" placeholder="名字" autocomplete="off" />
+        <input id="msg-input" maxlength="120" placeholder="留個言…（最多 120 字）" autocomplete="off" />
         <button id="msg-send">送出</button>
       </div>
       <div id="msg-list"></div>
