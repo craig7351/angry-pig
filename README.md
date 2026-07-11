@@ -90,20 +90,30 @@ npm run preview  # 預覽打包結果
 |------|------|
 | `POST /api/score` · `GET /api/leaderboard` | 送出得分 / 排行榜（IP 限流 + **分數合理性檢查防灌分**；死鬥/快樂帶波數、飛高帶模式，皆不影響排名） |
 | `POST /api/heartbeat` · `GET /api/online` · `GET /api/online-history` | 在線人數心跳 / 目前人數 / 近 7 天尖峰 |
-| `GET · POST /api/messages` | 留言板（含回覆、髒話過濾、版主刪除需 `ADMIN_KEY`） |
+| `GET · POST · DELETE /api/messages` | 留言板：**分層回覆**（`parentId`）、髒話過濾；**刪除需管理密碼**（比對 `ADMIN_KEY`，連同回覆一起刪） |
 | `GET · POST /api/totals` | 全服累計：遊玩場次 / 消滅動物數 / 遊玩秒數 |
 
 `schema.sql` 為 D1 結構（`scores` / `rate` / `presence` / `online_daily` / `messages` / `stats`）。
 
 **安全性**：所有 SQL 皆參數化綁定（無注入）、輸入 `sanitize` + 限長、留言/暱稱前端 `escapeHtml`（雙層防 XSS）、寫入端點以 Cloudflare `CF-Connecting-IP` 限流、`/api/score` 依波數做合理性上限擋灌分；`public/_headers` 設 CSP / `X-Frame-Options` / `nosniff` 等安全標頭。
 
+**用量優化（降低 Functions 呼叫與 D1 讀寫）**：
+- 客戶端心跳／線上輪詢 90 秒一次，**分頁隱藏時暫停**、回前景才補一次
+- `heartbeat` 用條件式 upsert（距上次 ≥8 秒才寫），免掉獨立限流表讀寫
+- `online` 的尖峰記錄與過期清理改**機率性**（約 1/8 次）
+- 讀取端點**邊緣快取**（Cache API）：`leaderboard` 30s / `totals` 60s / `online-history` 300s
+- D1 複合索引 `idx_scores_level_score` 降低分關查詢的 `rows_read`
+
 部署（需先 `wrangler login`）：
 
 ```bash
 wrangler d1 create angry-pig-db          # 建資料庫，把 database_id 填入 wrangler.jsonc
 npm run db:init                          # 套用 schema 到遠端 D1
+printf 0501 | npx wrangler pages secret put ADMIN_KEY --project-name=angry-pig   # 設留言板刪除密碼（不入庫）
 npm run deploy                           # build + 部署到 Cloudflare Pages
 ```
+
+> 未設定 `ADMIN_KEY` 時，留言刪除功能會停用（回 `disabled`）；設定後即以該值作為刪除密碼。
 
 ## 檔案
 
