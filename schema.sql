@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS rate (
   last_at INTEGER NOT NULL
 );
 
--- 在線（心跳）：近 90 秒活躍裝置
+-- 在線：記錄各裝置最後進場時間；線上人數 = 近 3 小時內活躍的 distinct 裝置數（無心跳輪詢）
 CREATE TABLE IF NOT EXISTS presence (
   device_id TEXT PRIMARY KEY,
   last_seen INTEGER NOT NULL

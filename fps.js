@@ -1866,10 +1866,14 @@ async function showLevelRank(levelName, score, note) {
 // ============================================================
 //  社群：線上人數 / 累計遊玩 / 留言板 / 上線歷史（後端離線時各自靜默）
 // ============================================================
-async function postHeartbeat() {
-  try { await fetch('/api/heartbeat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ deviceId }) }) } catch {}
+// 進場記錄 + 取線上人數（近 3 小時活躍）：只在進場呼叫一次，取代舊的心跳輪詢
+async function enterOnline() {
+  try {
+    const r = await fetch('/api/online', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ deviceId }) })
+    if (r.ok) { const j = await r.json(); const el = document.getElementById('online-n'); if (el && j.online != null) el.textContent = j.online }
+  } catch {}
 }
-async function refreshOnline() {
+async function refreshOnline() {   // 只讀人數（開「上線」視窗時用），不寫入
   try { const r = await fetch('/api/online'); if (r.ok) { const j = await r.json(); const el = document.getElementById('online-n'); if (el && j.online != null) el.textContent = j.online } } catch {}
 }
 const fmtDuration = (sec) => {
@@ -2169,14 +2173,10 @@ document.getElementById('set-reset').addEventListener('click', () => {
   Object.assign(settings, SETTINGS_DEFAULTS)   // 全部回到預設
   saveSettings(); applySettings(); syncSettingsUI()
 })
-// 心跳 + 線上人數：載入即上報；之後每 90 秒，且分頁隱藏時暫停輪詢（省 Functions/D1 用量）
-postHeartbeat(); refreshOnline(); refreshTotals()
-setInterval(() => { if (!document.hidden) { postHeartbeat(); refreshOnline() } }, 90000)
-setInterval(() => { if (!document.hidden) flushTotals() }, 30000)   // 每 30 秒上傳累積的消滅數/遊玩時間
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) flushTotals()                 // 離開分頁先把累積送出，避免遺失
-  else { postHeartbeat(); refreshOnline() }           // 回到分頁立即更新一次
-})
+// 進場只上報一次（不再心跳輪詢）：線上人數 = 近 3 小時活躍人數 → 大幅降低 Functions 請求數
+enterOnline(); refreshTotals()
+setInterval(() => { if (!document.hidden) flushTotals() }, 30000)   // 遊戲中累積的消滅數/遊玩秒數定期上傳（無累積則不送）
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushTotals() })   // 離開分頁把累積送出
 
 document.getElementById('retry').addEventListener('click', () => (game && game.endless ? startEndless(game.happy) : startLevel(currentLevel)))
 document.getElementById('next').addEventListener('click', () => startLevel(currentLevel + 1))
